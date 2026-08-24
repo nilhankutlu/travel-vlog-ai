@@ -6,7 +6,6 @@ from backend.models.schema import AudioTranscript, AudioSegment
 
 logger = logging.getLogger(__name__)
 
-# Lazy loading of whisper model to optimize startup time
 _WHISPER_MODEL = None
 
 def get_whisper_model(model_size: str = "base"):
@@ -15,10 +14,9 @@ def get_whisper_model(model_size: str = "base"):
         try:
             from faster_whisper import WhisperModel
             logger.info(f"Loading Faster-Whisper model ({model_size})...")
-            # Use cpu with int8 for fast local CPU execution on macOS
             _WHISPER_MODEL = WhisperModel(model_size, device="cpu", compute_type="int8")
         except ImportError:
-            logger.warning("faster-whisper not installed. Falling back to basic audio extraction mode.")
+            logger.warning("faster-whisper not installed. Falling back to basic audio mode.")
             _WHISPER_MODEL = False
         except Exception as e:
             logger.error(f"Error loading whisper model: {e}")
@@ -52,7 +50,6 @@ class AudioTranscriber:
                         for packet in out_stream.encode(r_frame):
                             out_container.mux(packet)
 
-                # Flush
                 for packet in out_stream.encode(None):
                     out_container.mux(packet)
             
@@ -62,7 +59,7 @@ class AudioTranscriber:
             return False
 
     def transcribe(self, video_path: str) -> AudioTranscript:
-        """Main method to extract audio and transcribe speech."""
+        """Main method to extract audio and transcribe Turkish speech."""
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_file:
             tmp_wav = tmp_file.name
 
@@ -71,7 +68,7 @@ class AudioTranscriber:
             if not has_audio:
                 return AudioTranscript(
                     full_text="[Videoda ses / konuşma bulunamadı]",
-                    language="none",
+                    language="tr",
                     segments=[],
                     has_speech=False
                 )
@@ -80,12 +77,13 @@ class AudioTranscriber:
             if not model:
                 return AudioTranscript(
                     full_text="[Whisper modeli yüklenemedi - Ses aktiftir]",
-                    language="unknown",
+                    language="tr",
                     segments=[],
                     has_speech=True
                 )
 
-            segments, info = model.transcribe(tmp_wav, beam_size=5, vad_filter=True)
+            # Explicitly force Turkish language for maximum accuracy on Turkish dialogues
+            segments, info = model.transcribe(tmp_wav, language="tr", beam_size=5, vad_filter=True)
             
             parsed_segments: List[AudioSegment] = []
             full_text_list = []
@@ -101,11 +99,10 @@ class AudioTranscriber:
                     full_text_list.append(text)
 
             full_text = " ".join(full_text_list)
-            detected_lang = getattr(info, 'language', 'tr')
 
             return AudioTranscript(
-                full_text=full_text if full_text else "[Konuşma tespit edilmedi - Arka plan sesi/Müzik var]",
-                language=detected_lang,
+                full_text=full_text if full_text else "[Konuşma tespit edilmedi - Arka plan sesi var]",
+                language="tr",
                 segments=parsed_segments,
                 has_speech=len(parsed_segments) > 0
             )
@@ -114,7 +111,7 @@ class AudioTranscriber:
             logger.error(f"Transcription failed for {video_path}: {e}")
             return AudioTranscript(
                 full_text=f"[Transkripsiyon hatası: {str(e)}]",
-                language="unknown",
+                language="tr",
                 segments=[],
                 has_speech=False
             )

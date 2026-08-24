@@ -38,7 +38,7 @@
                     <i class="fa-solid fa-list-check"></i> Video Kataloğu <span id="video-count-badge" class="badge">0</span>
                 </button>
                 <button class="nav-btn" data-tab="storyboard-tab">
-                    <i class="fa-solid fa-wand-magic-sparkles"></i> AI Vlog Senaryosu
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> Tam Vlog Senaryosu
                 </button>
                 <button class="nav-btn" data-tab="prompt-tab">
                     <i class="fa-solid fa-code"></i> AI Prompt İhracı
@@ -58,14 +58,14 @@
             <!-- Header Bar -->
             <header class="top-header">
                 <div class="header-title">
-                    <h1 id="page-title">Toplu Video İşleme & Otomatik Vlog Maker</h1>
-                    <p id="page-subtitle">EXIF GPS Konumu, Whisper Ses Transkripsiyonu ve Gemini Vision Görsel Analizi</p>
+                    <h1 id="page-title">Otomatik Travel Vlog Senaryo & Video Oluşturucu</h1>
+                    <p id="page-subtitle">Türkçe Konuşma Transkripsiyonu, EXIF Harita Konumu ve Tam Senaryo Motoru</p>
                 </div>
                 
                 <div class="header-actions">
                     <div class="api-key-input">
                         <i class="fa-solid fa-key"></i>
-                        <input type="password" id="gemini-key-input" placeholder="Gemini API Key (Görsel Analiz)">
+                        <input type="password" id="gemini-key-input" placeholder="Gemini API Key (Görsel & Senaryo)">
                     </div>
                 </div>
             </header>
@@ -79,12 +79,12 @@
                             <i class="fa-solid fa-folder-tree icon-primary"></i>
                             <h3>Toplu Klasör İşleme (Yüzlerce Video)</h3>
                         </div>
-                        <p class="card-desc">Bilgisayarınızdaki video klasörünün yolunu girin. EXIF konumları, konuşma metinleri ve görseller otomatik taranacaktır.</p>
+                        <p class="card-desc">Bilgisayarınızdaki seyahat videoları klasör yolunu girin. Türkçe konuşmalar, GPS konumları ve görseller otomatik işlenip tam vlog senaryosu oluşturulacaktır.</p>
 
                         <div class="form-group">
                             <label for="folder-path-input">Klasör Yolu (Absolute Path):</label>
                             <div class="input-with-button">
-                                <input type="text" id="folder-path-input" placeholder="/Users/kullanici/Videos/Travel2026">
+                                <input type="text" id="folder-path-input" placeholder="/Users/kullanici/Videos/Seyahat2026">
                                 <button id="start-folder-btn" class="btn btn-primary">
                                     <i class="fa-solid fa-play"></i> Taramayı Başlat
                                 </button>
@@ -93,7 +93,7 @@
 
                         <div class="form-row">
                             <div class="form-group half">
-                                <label for="whisper-model-select">Whisper Modeli:</label>
+                                <label for="whisper-model-select">Whisper Modeli (Türkçe):</label>
                                 <select id="whisper-model-select">
                                     <option value="tiny">Tiny (Çok Hızlı)</option>
                                     <option value="base" selected>Base (Dengeli & Hızlı)</option>
@@ -145,7 +145,7 @@
             <!-- TAB 2: VIDEO CATALOG & TIMELINE -->
             <section id="catalog-tab" class="tab-content">
                 <div class="catalog-toolbar">
-                    <input type="text" id="catalog-search" placeholder="Konum, konuşma metni veya sahne ara..." class="search-input">
+                    <input type="text" id="catalog-search" placeholder="Konum, Türkçe konuşma metni veya sahne ara..." class="search-input">
                     <div class="toolbar-stats">
                         <span>Toplam: <strong id="stat-total-videos">0</strong> video</span>
                         <span>Konuşma İçeren: <strong id="stat-speech-videos">0</strong></span>
@@ -153,7 +153,6 @@
                 </div>
 
                 <div id="video-catalog-grid" class="video-grid">
-                    <!-- Dynamic Video Cards will be inserted here -->
                     <div class="empty-state">
                         <i class="fa-solid fa-film"></i>
                         <p>Henüz işlenmiş video yok. "Video İçe Aktar" sekmesinden klasör taraması yapın.</p>
@@ -161,17 +160,20 @@
                 </div>
             </section>
 
-            <!-- TAB 3: STORYBOARD -->
+            <!-- TAB 3: COMPLETE END-TO-END VLOG SCRIPT -->
             <section id="storyboard-tab" class="tab-content">
                 <div class="glass-card">
                     <div class="card-header">
                         <i class="fa-solid fa-clapperboard icon-primary"></i>
-                        <h3 id="storyboard-title">Otomatik Kurgulanan Travel Vlog Hikayesi</h3>
+                        <h3 id="storyboard-title">Uygulama Tarafından Üretilen Tam Vlog Senaryosu</h3>
+                        <button id="copy-script-btn" class="btn btn-secondary btn-sm" style="margin-left: auto;">
+                            <i class="fa-regular fa-copy"></i> Senaryoyu Kopyala
+                        </button>
                     </div>
-                    <p class="card-desc">Tüm videolarınızın estetik ve konum verilerine göre önerilen kurgu akışı:</p>
+                    <p class="card-desc">Giriş (Intro), Dış Ses Metinleri (Voiceover), Kesim Zaman Damgaları ve Kapanış (Outro) içeren tam senaryonuz:</p>
 
-                    <div id="storyboard-timeline" class="storyboard-timeline">
-                        <!-- Dynamic Storyboard Items -->
+                    <div id="full-script-preview" class="code-preview" style="color: #e5e7eb; white-space: pre-wrap; font-family: 'Inter', sans-serif; line-height: 1.6;">
+                        Henüz oluşturulmuş vlog senaryosu yok.
                     </div>
                 </div>
             </section>
@@ -181,12 +183,12 @@
                 <div class="glass-card">
                     <div class="card-header">
                         <i class="fa-solid fa-robot icon-accent"></i>
-                        <h3>Başka Bir AI İçin Hazır Vlog Senaryo İstem (Prompt)</h3>
+                        <h3>Yedek AI İstem Metni (Prompt)</h3>
                         <button id="copy-prompt-btn" class="btn btn-secondary btn-sm">
                             <i class="fa-regular fa-copy"></i> İstem Metnini Kopyala
                         </button>
                     </div>
-                    <p class="card-desc">Aşağıdaki metni kopyalayıp ChatGPT, Claude veya Gemini'ye yapıştırarak tam hazır YouTube Vlog senaryosu ve kurgu fikirleri alabilirsiniz.</p>
+                    <p class="card-desc">Dilerseniz bu ham ham veriyi kopyalayıp başka bir AI modeline de iletebilirsiniz.</p>
 
                     <pre id="prompt-preview" class="code-preview">Henüz işlenmiş video verisi yok.</pre>
                 </div>

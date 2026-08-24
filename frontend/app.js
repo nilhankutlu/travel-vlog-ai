@@ -1,9 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // State
     let currentVideos = [];
     let currentStoryboard = null;
 
-    // Elements
     const navButtons = document.querySelectorAll('.nav-btn');
     const tabContents = document.querySelectorAll('.tab-content');
     const folderPathInput = document.getElementById('folder-path-input');
@@ -19,12 +17,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const videoCountBadge = document.getElementById('video-count-badge');
     const statTotalVideos = document.getElementById('stat-total-videos');
     const statSpeechVideos = document.getElementById('stat-speech-videos');
-    const storyboardTimeline = document.getElementById('storyboard-timeline');
+    const fullScriptPreview = document.getElementById('full-script-preview');
+    const copyScriptBtn = document.getElementById('copy-script-btn');
     const promptPreview = document.getElementById('prompt-preview');
     const copyPromptBtn = document.getElementById('copy-prompt-btn');
     const catalogSearch = document.getElementById('catalog-search');
 
-    // Tab Navigation
     navButtons.forEach(btn => {
         btn.addEventListener('click', () => {
             const targetTab = btn.getAttribute('data-tab');
@@ -40,7 +38,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Setup SSE Stream
     function initSSEStream() {
         const evtSource = new EventSource('/api/status_stream');
         evtSource.addEventListener('progress', (e) => {
@@ -62,7 +59,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initSSEStream();
 
-    // Start Folder Processing
     startFolderBtn.addEventListener('click', async () => {
         const folderPath = folderPathInput.value.trim();
         if (!folderPath) {
@@ -71,7 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         progressCard.classList.remove('hidden');
-        progressStatusText.textContent = 'Klasör taranıyor ve işleyici başlatılıyor...';
+        progressStatusText.textContent = 'Klasör taranıyor ve Türkçe transkripsiyon başlatılıyor...';
         progressBarFill.style.width = '2%';
 
         try {
@@ -95,12 +91,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Single File Drag & Drop
     const dropZone = document.getElementById('drop-zone');
     const fileInput = document.getElementById('file-input');
 
     dropZone.addEventListener('click', () => fileInput.click());
-
     fileInput.addEventListener('change', (e) => {
         if (e.target.files.length > 0) {
             uploadSingleFile(e.target.files[0]);
@@ -110,7 +104,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function uploadSingleFile(file) {
         progressCard.classList.remove('hidden');
         progressFilename.textContent = `Yükleniyor: ${file.name}`;
-        progressStatusText.textContent = 'Dosya sunucuya aktarılıyor...';
+        progressStatusText.textContent = 'Dosya aktarılıyor...';
         progressBarFill.style.width = '10%';
 
         const formData = new FormData();
@@ -128,7 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (res.ok) {
                 progressPercentText.textContent = '100%';
                 progressBarFill.style.width = '100%';
-                progressStatusText.textContent = 'Video başarıyla analiz edildi!';
+                progressStatusText.textContent = 'Video analiz edildi!';
                 fetchResults();
             } else {
                 alert('Video işlenirken bir hata oluştu.');
@@ -139,7 +133,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Fetch Results & Render
     async function fetchResults() {
         try {
             const res = await fetch('/api/results');
@@ -148,7 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
             currentStoryboard = data.storyboard || null;
 
             renderCatalog(currentVideos);
-            renderStoryboard(currentStoryboard);
+            renderScript(currentStoryboard);
             renderPrompt(currentStoryboard ? currentStoryboard.chat_ai_prompt : '');
         } catch (err) {
             console.error('Sonuçlar alınamadı:', err);
@@ -175,7 +168,7 @@ document.addEventListener('DOMContentLoaded', () => {
         videoCatalogGrid.innerHTML = videos.map(item => {
             const loc = item.metadata.location;
             const placeStr = loc.place_name || loc.city || 'Bilinmeyen Konum';
-            const speechText = item.transcript.has_speech ? item.transcript.full_text : 'Konuşma yok / Sadece Müzik';
+            const speechText = item.transcript.has_speech ? item.transcript.full_text : 'Konuşma yok / Sadece Arka Plan Sesi';
 
             return `
                 <div class="video-card">
@@ -201,29 +194,29 @@ document.addEventListener('DOMContentLoaded', () => {
         }).join('');
     }
 
-    function renderStoryboard(storyboard) {
-        if (!storyboard || !storyboard.storyline || storyboard.storyline.length === 0) {
-            storyboardTimeline.innerHTML = '<p class="card-desc">İşlenmiş kurgu senaryosu bulunmuyor.</p>';
+    function renderScript(storyboard) {
+        if (!storyboard || !storyboard.full_vlog_script_tr) {
+            fullScriptPreview.textContent = 'Henüz oluşturulmuş vlog senaryosu yok.';
             return;
         }
 
-        document.getElementById('storyboard-title').textContent = `Otomatik Vlog Kurgusu: ${storyboard.vlog_title}`;
-
-        storyboardTimeline.innerHTML = storyboard.storyline.map(seg => `
-            <div style="background: rgba(0,0,0,0.3); border-left: 3px solid var(--primary); padding: 14px; margin-bottom: 12px; border-radius: 8px;">
-                <div style="display:flex; justify-content:space-between; margin-bottom: 6px;">
-                    <strong style="color: var(--primary);">${seg.suggested_title}</strong>
-                    <span style="font-size: 12px; color: var(--text-muted);"><i class="fa-solid fa-clock"></i> ${seg.start_time}s - ${seg.end_time}s</span>
-                </div>
-                <p style="font-size: 13px; margin-bottom: 6px;">${seg.narration_voiceover}</p>
-                <span class="tag"><i class="fa-solid fa-video"></i> ${seg.editing_notes}</span>
-            </div>
-        `).join('');
+        document.getElementById('storyboard-title').textContent = `Tam Vlog Senaryosu: ${storyboard.vlog_title}`;
+        fullScriptPreview.textContent = storyboard.full_vlog_script_tr;
     }
 
     function renderPrompt(promptText) {
-        promptPreview.textContent = promptText || 'Henüz prompt oluşturulamadı.';
+        promptPreview.textContent = promptText || 'Henüz istem oluşturulamadı.';
     }
+
+    copyScriptBtn.addEventListener('click', () => {
+        const text = fullScriptPreview.textContent;
+        navigator.clipboard.writeText(text).then(() => {
+            copyScriptBtn.innerHTML = '<i class="fa-solid fa-check"></i> Senaryo Kopyalandı!';
+            setTimeout(() => {
+                copyScriptBtn.innerHTML = '<i class="fa-regular fa-copy"></i> Senaryoyu Kopyala';
+            }, 2000);
+        });
+    });
 
     copyPromptBtn.addEventListener('click', () => {
         const text = promptPreview.textContent;
@@ -235,7 +228,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Search filter
     catalogSearch.addEventListener('input', (e) => {
         const term = e.target.value.toLowerCase();
         const filtered = currentVideos.filter(v => {
@@ -248,6 +240,5 @@ document.addEventListener('DOMContentLoaded', () => {
         renderCatalog(filtered);
     });
 
-    // Initial fetch
     fetchResults();
 });

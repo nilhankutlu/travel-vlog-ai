@@ -16,10 +16,11 @@ SUPPORTED_EXTENSIONS = {".mp4", ".mov", ".m4v", ".avi", ".mkdir", ".ins360", ".g
 
 class VideoPipelineProcessor:
     def __init__(self, whisper_model: str = "base", gemini_api_key: Optional[str] = None):
+        self.gemini_api_key = gemini_api_key or os.environ.get("GEMINI_API_KEY")
         self.metadata_extractor = MetadataExtractor()
         self.audio_transcriber = AudioTranscriber(model_size=whisper_model)
-        self.vision_analyzer = VisionAnalyzer(api_key=gemini_api_key)
-        self.vlog_generator = VlogGenerator()
+        self.vision_analyzer = VisionAnalyzer(api_key=self.gemini_api_key)
+        self.vlog_generator = VlogGenerator(api_key=self.gemini_api_key)
         self.processed_items: Dict[str, ProcessedVideoItem] = {}
 
     def is_video_file(self, file_path: str) -> bool:
@@ -42,7 +43,7 @@ class VideoPipelineProcessor:
         metadata = self.metadata_extractor.extract(video_path)
 
         if progress_cb:
-            progress_cb(file_name, 0.4, "Ses konuşmaları (Whisper AI) çözümleniyor...")
+            progress_cb(file_name, 0.4, "Ses konuşmaları (Whisper AI - Türkçe) çözümleniyor...")
 
         # Step 2: Audio Transcription
         transcript = self.audio_transcriber.transcribe(video_path)
@@ -104,7 +105,6 @@ class VideoPipelineProcessor:
                 item = self.process_single_video(v_path, single_cb)
                 results.append(item)
 
-                # Save individual JSON
                 single_json_path = os.path.join(output_dir, f"{item.video_id}_{fname}.json")
                 with open(single_json_path, "w", encoding="utf-8") as f:
                     f.write(item.model_dump_json(indent=2))
@@ -112,7 +112,7 @@ class VideoPipelineProcessor:
             except Exception as e:
                 logger.error(f"{fname} işlenirken hata oluştu: {e}")
 
-        # Generate Master Catalog & Storyboard
+        # Generate Master Catalog & Full End-to-End Turkish Vlog Script
         storyboard = self.vlog_generator.generate_storyboard(results)
 
         master_json_path = os.path.join(output_dir, "master_catalog.json")
@@ -123,6 +123,11 @@ class VideoPipelineProcessor:
                 "storyboard": storyboard.model_dump()
             }
             json.dump(catalog_data, f, ensure_ascii=False, indent=2)
+
+        # Save Complete Turkish Vlog Script
+        script_path = os.path.join(output_dir, "final_vlog_script.md")
+        with open(script_path, "w", encoding="utf-8") as f:
+            f.write(storyboard.full_vlog_script_tr)
 
         prompt_path = os.path.join(output_dir, "vlog_prompt.md")
         with open(prompt_path, "w", encoding="utf-8") as f:
