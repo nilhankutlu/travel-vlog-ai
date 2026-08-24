@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Travel Vlog AI - Video Indexer & Automated Storyboard Studio</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="logo-icon">
+                    <i class="fa-solid fa-film"></i>
+                </div>
+                <div class="brand-text">
+                    <h2>VlogAI Studio</h2>
+                    <span>Automated Video Indexer</span>
+                </div>
+            </div>
+
+            <nav class="nav-menu">
+                <button class="nav-btn active" data-tab="upload-tab">
+                    <i class="fa-solid fa-folder-open"></i> Video İçe Aktar
+                </button>
+                <button class="nav-btn" data-tab="catalog-tab">
+                    <i class="fa-solid fa-list-check"></i> Video Kataloğu <span id="video-count-badge" class="badge">0</span>
+                </button>
+                <button class="nav-btn" data-tab="storyboard-tab">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> AI Vlog Senaryosu
+                </button>
+                <button class="nav-btn" data-tab="prompt-tab">
+                    <i class="fa-solid fa-code"></i> AI Prompt İhracı
+                </button>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="status-indicator">
+                    <span class="dot online"></span>
+                    <span id="system-status">Sistem Hazır</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Header Bar -->
+            <header class="top-header">
+                <div class="header-title">
+                    <h1 id="page-title">Toplu Video İşleme & Otomatik Vlog Maker</h1>
+                    <p id="page-subtitle">EXIF GPS Konumu, Whisper Ses Transkripsiyonu ve Gemini Vision Görsel Analizi</p>
+                </div>
+                
+                <div class="header-actions">
+                    <div class="api-key-input">
+                        <i class="fa-solid fa-key"></i>
+                        <input type="password" id="gemini-key-input" placeholder="Gemini API Key (Görsel Analiz)">
+                    </div>
+                </div>
+            </header>
+
+            <!-- TAB 1: UPLOAD / FOLDER SELECT -->
+            <section id="upload-tab" class="tab-content active">
+                <div class="grid-2col">
+                    <!-- Batch Folder Input Card -->
+                    <div class="glass-card">
+                        <div class="card-header">
+                            <i class="fa-solid fa-folder-tree icon-primary"></i>
+                            <h3>Toplu Klasör İşleme (Yüzlerce Video)</h3>
+                        </div>
+                        <p class="card-desc">Bilgisayarınızdaki video klasörünün yolunu girin. EXIF konumları, konuşma metinleri ve görseller otomatik taranacaktır.</p>
+
+                        <div class="form-group">
+                            <label for="folder-path-input">Klasör Yolu (Absolute Path):</label>
+                            <div class="input-with-button">
+                                <input type="text" id="folder-path-input" placeholder="/Users/kullanici/Videos/Travel2026">
+                                <button id="start-folder-btn" class="btn btn-primary">
+                                    <i class="fa-solid fa-play"></i> Taramayı Başlat
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group half">
+                                <label for="whisper-model-select">Whisper Modeli:</label>
+                                <select id="whisper-model-select">
+                                    <option value="tiny">Tiny (Çok Hızlı)</option>
+                                    <option value="base" selected>Base (Dengeli & Hızlı)</option>
+                                    <option value="small">Small (Yüksek Doğruluk)</option>
+                                    <option value="medium">Medium (Çok Hassas)</option>
+                                </select>
+                            </div>
+                            <div class="form-group half">
+                                <label>Desteklenen Biçimler:</label>
+                                <span class="tag">MP4</span> <span class="tag">MOV</span> <span class="tag">Insta360</span> <span class="tag">GoPro</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Single File Drag & Drop Card -->
+                    <div class="glass-card">
+                        <div class="card-header">
+                            <i class="fa-solid fa-cloud-arrow-up icon-secondary"></i>
+                            <h3>Tekli / Hızlı Video Yükleme</h3>
+                        </div>
+                        
+                        <div id="drop-zone" class="drop-zone">
+                            <i class="fa-solid fa-film drop-icon"></i>
+                            <h4>Videoyu buraya sürükleyin</h4>
+                            <p>veya dosya seçmek için tıklayın</p>
+                            <input type="file" id="file-input" accept="video/*" hidden>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Progress Card -->
+                <div id="progress-card" class="glass-card margin-top-lg hidden">
+                    <div class="card-header">
+                        <i class="fa-solid fa-spinner fa-spin icon-accent"></i>
+                        <h3 id="progress-filename">Videolar İşleniyor...</h3>
+                    </div>
+                    
+                    <div class="progress-bar-container">
+                        <div id="progress-bar-fill" class="progress-bar-fill" style="width: 0%;"></div>
+                    </div>
+                    
+                    <div class="progress-details">
+                        <span id="progress-status-text">Analiz başlatılıyor...</span>
+                        <span id="progress-percent-text">0%</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 2: VIDEO CATALOG & TIMELINE -->
+            <section id="catalog-tab" class="tab-content">
+                <div class="catalog-toolbar">
+                    <input type="text" id="catalog-search" placeholder="Konum, konuşma metni veya sahne ara..." class="search-input">
+                    <div class="toolbar-stats">
+                        <span>Toplam: <strong id="stat-total-videos">0</strong> video</span>
+                        <span>Konuşma İçeren: <strong id="stat-speech-videos">0</strong></span>
+                    </div>
+                </div>
+
+                <div id="video-catalog-grid" class="video-grid">
+                    <!-- Dynamic Video Cards will be inserted here -->
+                    <div class="empty-state">
+                        <i class="fa-solid fa-film"></i>
+                        <p>Henüz işlenmiş video yok. "Video İçe Aktar" sekmesinden klasör taraması yapın.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 3: STORYBOARD -->
+            <section id="storyboard-tab" class="tab-content">
+                <div class="glass-card">
+                    <div class="card-header">
+                        <i class="fa-solid fa-clapperboard icon-primary"></i>
+                        <h3 id="storyboard-title">Otomatik Kurgulanan Travel Vlog Hikayesi</h3>
+                    </div>
+                    <p class="card-desc">Tüm videolarınızın estetik ve konum verilerine göre önerilen kurgu akışı:</p>
+
+                    <div id="storyboard-timeline" class="storyboard-timeline">
+                        <!-- Dynamic Storyboard Items -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 4: AI PROMPT EXPORT -->
+            <section id="prompt-tab" class="tab-content">
+                <div class="glass-card">
+                    <div class="card-header">
+                        <i class="fa-solid fa-robot icon-accent"></i>
+                        <h3>Başka Bir AI İçin Hazır Vlog Senaryo İstem (Prompt)</h3>
+                        <button id="copy-prompt-btn" class="btn btn-secondary btn-sm">
+                            <i class="fa-regular fa-copy"></i> İstem Metnini Kopyala
+                        </button>
+                    </div>
+                    <p class="card-desc">Aşağıdaki metni kopyalayıp ChatGPT, Claude veya Gemini'ye yapıştırarak tam hazır YouTube Vlog senaryosu ve kurgu fikirleri alabilirsiniz.</p>
+
+                    <pre id="prompt-preview" class="code-preview">Henüz işlenmiş video verisi yok.</pre>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- JS -->
+    <script src="/static/app.js"></script>
+</body>
+</html>

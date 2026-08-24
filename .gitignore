@@ -1,0 +1,28 @@
+# Virtual Environment
+venv/
+ENV/
+env/
+
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Output and temp files
+output/
+samples/output/
+samples/test_videos/*.mp4
+uploads/
+*.wav
+*.mp4
+*.mov
+
+# Environment & API Keys
+.env
+.env.local
+
+# macOS system files
+.DS_Store

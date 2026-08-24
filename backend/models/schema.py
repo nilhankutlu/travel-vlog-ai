@@ -1,0 +1,78 @@
+from pydantic import BaseModel, Field
+from typing import List, Optional, Dict, Any
+
+class GPSLocation(BaseModel):
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    altitude: Optional[float] = None
+    place_name: Optional[str] = "Unknown Location"
+    city: Optional[str] = None
+    country: Optional[str] = None
+    address: Optional[str] = None
+
+class VideoMetadata(BaseModel):
+    file_name: str
+    file_path: str
+    file_size_mb: float
+    duration_seconds: float
+    fps: float
+    width: int
+    height: int
+    creation_time: Optional[str] = None
+    location: GPSLocation = Field(default_factory=GPSLocation)
+
+class AudioSegment(BaseModel):
+    start_time: float
+    end_time: float
+    text: str
+    speaker: Optional[str] = None
+
+class AudioTranscript(BaseModel):
+    full_text: str = ""
+    language: str = "unknown"
+    segments: List[AudioSegment] = []
+    has_speech: bool = False
+
+class VisualScene(BaseModel):
+    timestamp: float
+    description: str
+    tags: List[str] = []
+
+class VisionAnalysis(BaseModel):
+    summary: str = ""
+    detailed_description: str = ""
+    objects_detected: List[str] = []
+    actions: List[str] = []
+    scenery: str = ""
+    atmosphere: str = ""
+    camera_movement: str = ""
+    detected_text: List[str] = []
+    aesthetic_score: float = 7.0  # 1-10
+    scenes: List[VisualScene] = []
+
+class ProcessedVideoItem(BaseModel):
+    video_id: str
+    metadata: VideoMetadata
+    transcript: AudioTranscript
+    vision: VisionAnalysis
+    status: str = "completed"  # pending, processing, completed, error
+    error_message: Optional[str] = None
+
+class VlogSegment(BaseModel):
+    segment_id: int
+    video_id: str
+    file_name: str
+    start_time: float
+    end_time: float
+    suggested_title: str
+    narration_voiceover: str
+    editing_notes: str
+    location_name: str
+
+class MasterVlogStoryboard(BaseModel):
+    vlog_title: str
+    overall_theme: str
+    recommended_music_genre: str
+    total_videos_analyzed: int
+    storyline: List[VlogSegment] = []
+    chat_ai_prompt: str = ""
