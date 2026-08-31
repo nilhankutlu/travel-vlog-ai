@@ -41,7 +41,7 @@
                     <i class="fa-solid fa-wand-magic-sparkles"></i> Tam Vlog Senaryosu
                 </button>
                 <button class="nav-btn" data-tab="video-render-tab">
-                    <i class="fa-solid fa-circle-play"></i> Nihai Vlog Oynatıcı
+                    <i class="fa-solid fa-circle-play"></i> Long & Short Videolar
                 </button>
                 <button class="nav-btn" data-tab="prompt-tab">
                     <i class="fa-solid fa-code"></i> AI Prompt İhracı
@@ -61,8 +61,8 @@
             <!-- Header Bar -->
             <header class="top-header">
                 <div class="header-title">
-                    <h1 id="page-title">Otomatik Travel Vlog Senaryo & Video Oluşturucu</h1>
-                    <p id="page-subtitle">Türkçe Konuşma Transkripsiyonu, EXIF Harita Konumu ve Otomatik Kurgu Motoru</p>
+                    <h1 id="page-title">Otomatik Long (Yatay 16:9) & Short (Dik 9:16) Vlog Maker</h1>
+                    <p id="page-subtitle">Türkçe Konuşma Transkripsiyonu, EXIF Harita Konumu ve Çift Format Kurgu Motoru</p>
                 </div>
                 
                 <div class="header-actions">
@@ -76,13 +76,12 @@
             <!-- TAB 1: UPLOAD / FOLDER SELECT -->
             <section id="upload-tab" class="tab-content active">
                 <div class="grid-2col">
-                    <!-- Batch Folder Input Card -->
                     <div class="glass-card">
                         <div class="card-header">
                             <i class="fa-solid fa-folder-tree icon-primary"></i>
                             <h3>Toplu Klasör İşleme (Yüzlerce Video)</h3>
                         </div>
-                        <p class="card-desc">Bilgisayarınızdaki seyahat videoları klasör yolunu girin. Türkçe konuşmalar, GPS konumları ve görseller otomatik işlenip tam vlog senaryosu oluşturulacaktır.</p>
+                        <p class="card-desc">Bilgisayarınızdaki seyahat videoları klasör yolunu girin. Türkçe konuşmalar, GPS konumları ve görseller otomatik işlenip hem Yatay Long hem de Dik Short senaryoları hazırlanacaktır.</p>
 
                         <div class="form-group">
                             <label for="folder-path-input">Klasör Yolu (Absolute Path):</label>
@@ -111,7 +110,6 @@
                         </div>
                     </div>
 
-                    <!-- Single File Drag & Drop Card -->
                     <div class="glass-card">
                         <div class="card-header">
                             <i class="fa-solid fa-cloud-arrow-up icon-secondary"></i>
@@ -127,7 +125,6 @@
                     </div>
                 </div>
 
-                <!-- Live Progress Card -->
                 <div id="progress-card" class="glass-card margin-top-lg hidden">
                     <div class="card-header">
                         <i class="fa-solid fa-spinner fa-spin icon-accent"></i>
@@ -168,15 +165,21 @@
                 <div class="glass-card">
                     <div class="card-header">
                         <i class="fa-solid fa-clapperboard icon-primary"></i>
-                        <h3 id="storyboard-title">Uygulama Tarafından Üretilen Tam Vlog Senaryosu</h3>
-                        <button id="render-video-btn" class="btn btn-primary btn-sm" style="margin-left: auto;">
-                            <i class="fa-solid fa-film"></i> 🎬 Nihai Videoyu Birleştir & Oluştur
-                        </button>
-                        <button id="copy-script-btn" class="btn btn-secondary btn-sm">
-                            <i class="fa-regular fa-copy"></i> Senaryoyu Kopyala
+                        <h3 id="storyboard-title">Uygulama Tarafından Üretilen Tam Vlog Senaryoları</h3>
+                    </div>
+
+                    <!-- Render Controls -->
+                    <div style="display: flex; gap: 12px; margin-bottom: 20px; align-items: center; background: rgba(0,0,0,0.3); padding: 14px; border-radius: 12px;">
+                        <span style="font-weight: 600; font-size: 14px;">Kurgulanacak Video Formatı:</span>
+                        <select id="render-format-select" style="padding: 8px 14px;">
+                            <option value="both" selected>🌟 Her İkisini De Oluştur (Yatay Long 16:9 + Dik Short 9:16)</option>
+                            <option value="long">🎬 Sadece Long-Form (Yatay 16:9 YouTube)</option>
+                            <option value="short">📱 Sadece Short-Form (Dik 9:16 Reels/TikTok/Shorts)</option>
+                        </select>
+                        <button id="render-video-btn" class="btn btn-primary btn-sm">
+                            <i class="fa-solid fa-film"></i> Videoları Oluştur (Render)
                         </button>
                     </div>
-                    <p class="card-desc">Giriş (Intro), Dış Ses Metinleri (Voiceover), Kesim Zaman Damgaları ve Kapanış (Outro) içeren tam senaryonuz:</p>
 
                     <div id="full-script-preview" class="code-preview" style="color: #e5e7eb; white-space: pre-wrap; font-family: 'Inter', sans-serif; line-height: 1.6;">
                         Henüz oluşturulmuş vlog senaryosu yok.
@@ -184,21 +187,41 @@
                 </div>
             </section>
 
-            <!-- TAB 4: RENDERED FINAL VIDEO PLAYER -->
+            <!-- TAB 4: RENDERED DUAL VIDEO PLAYERS (LONG & SHORT) -->
             <section id="video-render-tab" class="tab-content">
-                <div class="glass-card">
-                    <div class="card-header">
-                        <i class="fa-solid fa-circle-play icon-primary"></i>
-                        <h3>Birleştirilen Nihai Travel Vlog Videonuz</h3>
-                        <a id="download-video-link" href="#" download class="btn btn-secondary btn-sm hidden" style="margin-left: auto;">
-                            <i class="fa-solid fa-download"></i> Videoyu İndir (MP4)
-                        </a>
-                    </div>
-                    <p class="card-desc">Tüm videolarınızın en estetik sahneleri otomatik kesilerek tek bir kurgu dosyası haline getirildi:</p>
+                <div class="grid-2col">
+                    <!-- Long-Form Player (Yatay 16:9) -->
+                    <div class="glass-card">
+                        <div class="card-header">
+                            <i class="fa-solid fa-desktop icon-primary"></i>
+                            <h3>🎬 Long-Form Vlog (Yatay 16:9 YouTube)</h3>
+                            <a id="download-long-link" href="#" download class="btn btn-secondary btn-sm hidden" style="margin-left: auto;">
+                                <i class="fa-solid fa-download"></i> İndir
+                            </a>
+                        </div>
+                        <p class="card-desc">Hikaye akışlı tam YouTube vlog videosu:</p>
 
-                    <div id="rendered-video-container" style="text-align: center; padding: 20px;">
-                        <p id="no-render-msg" class="card-desc">Henüz nihai video birleştirilmedi. "Tam Vlog Senaryosu" sekmesindeki <strong>"Nihai Videoyu Birleştir & Oluştur"</strong> butonuna basın.</p>
-                        <video id="final-vlog-player" controls class="hidden" style="max-width: 100%; max-height: 500px; border-radius: 12px; border: 1px solid var(--border-color); box-shadow: var(--shadow-glow);"></video>
+                        <div style="text-align: center;">
+                            <p id="no-long-msg" class="card-desc">Henüz Yatay Long video birleştirilmedi.</p>
+                            <video id="long-vlog-player" controls class="hidden" style="width: 100%; border-radius: 12px; border: 1px solid var(--border-color);"></video>
+                        </div>
+                    </div>
+
+                    <!-- Short-Form Player (Dik 9:16) -->
+                    <div class="glass-card">
+                        <div class="card-header">
+                            <i class="fa-solid fa-mobile-screen icon-secondary"></i>
+                            <h3>📱 Short-Form Vlog (Dik 9:16 Reels/TikTok)</h3>
+                            <a id="download-short-link" href="#" download class="btn btn-secondary btn-sm hidden" style="margin-left: auto;">
+                                <i class="fa-solid fa-download"></i> İndir
+                            </a>
+                        </div>
+                        <p class="card-desc">15-30 saniyelik tempolu dik Shorts / Reels videosu:</p>
+
+                        <div style="text-align: center;">
+                            <p id="no-short-msg" class="card-desc">Henüz Dik Short video birleştirilmedi.</p>
+                            <video id="short-vlog-player" controls class="hidden" style="max-width: 280px; max-height: 480px; border-radius: 16px; border: 1px solid var(--border-color);"></video>
+                        </div>
                     </div>
                 </div>
             </section>

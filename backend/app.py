@@ -10,14 +10,13 @@ from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
 from backend.core.processor import VideoPipelineProcessor
-from backend.models.schema import ProcessedVideoItem
+from backend.models.schema import ProcessedVideoItem, RenderVideoRequest
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Travel Vlog AI Video Maker & Indexer")
 
-# Global State
 PROCESSOR: Optional[VideoPipelineProcessor] = None
 PROGRESS_QUEUE = asyncio.Queue()
 PROCESSED_ITEMS: List[ProcessedVideoItem] = []
@@ -37,7 +36,6 @@ async def startup_event():
 
 @app.get("/api/status_stream")
 async def status_stream():
-    """Server-Sent Events endpoint for live progress update streaming."""
     async def event_generator():
         while True:
             try:
@@ -91,7 +89,7 @@ async def process_folder(req: ProcessFolderRequest, background_tasks: Background
                     "current": len(PROCESSED_ITEMS),
                     "total": len(PROCESSED_ITEMS),
                     "overall_progress": 100.0,
-                    "status_message": "Tüm videolar ve Vlog Senaryosu başarıyla oluşturuldu!"
+                    "status_message": "Tüm videolar, Yatay Long ve Dik Short Senaryoları başarıyla oluşturuldu!"
                 }),
                 asyncio.get_event_loop()
             )
@@ -127,52 +125,52 @@ async def upload_video(file: UploadFile = File(...), gemini_api_key: Optional[st
     }
 
 @app.post("/api/render_video")
-async def render_video(background_tasks: BackgroundTasks):
-    """Triggers automated video concatenation and rendering of final_travel_vlog.mp4."""
-    script_path = os.path.join(CURRENT_OUTPUT_DIR, "render_vlog.py")
-    output_video = os.path.join(CURRENT_OUTPUT_DIR, "final_travel_vlog.mp4")
-
-    if not os.path.exists(script_path):
-        raise HTTPException(status_code=400, detail="Önce videoları işleyin ve senaryoyu oluşturun.")
+async def render_video(req: RenderVideoRequest, background_tasks: BackgroundTasks):
+    """Triggers render for Long (16:9 Yatay), Short (9:16 Dik), or Both formats."""
+    py_bin = os.path.abspath("./venv/bin/python3")
+    if not os.path.exists(py_bin):
+        py_bin = "python3"
 
     def run_render():
         try:
+            fmt = req.video_format.lower()
+            scripts_to_run = []
+
+            if fmt in ["long", "both"]:
+                scripts_to_run.append((os.path.join(CURRENT_OUTPUT_DIR, "render_long_vlog.py"), "🎬 Yatay 16:9 Long-Form Vlog"))
+            if fmt in ["short", "both"]:
+                scripts_to_run.append((os.path.join(CURRENT_OUTPUT_DIR, "render_short_vlog.py"), "📱 Dik 9:16 Short-Form Reels/TikTok"))
+
+            for script_p, label in scripts_to_run:
+                if os.path.exists(script_p):
+                    asyncio.run_coroutine_threadsafe(
+                        PROGRESS_QUEUE.put({
+                            "filename": label,
+                            "current": 1,
+                            "total": 1,
+                            "overall_progress": 50.0,
+                            "status_message": f"{label} kurgulanıyor ve oluşturuluyor..."
+                        }),
+                        asyncio.get_event_loop()
+                    )
+                    res = subprocess.run([py_bin, script_p], capture_output=True, text=True)
+                    logger.info(f"{label} stdout: {res.stdout}")
+
             asyncio.run_coroutine_threadsafe(
                 PROGRESS_QUEUE.put({
-                    "filename": "RENDER",
-                    "current": 1,
-                    "total": 1,
-                    "overall_progress": 50.0,
-                    "status_message": "🎬 Nihai Travel Vlog kurgulanıyor ve birleştiriliyor..."
-                }),
-                asyncio.get_event_loop()
-            )
-
-            # Execute render_vlog.py using virtual environment python
-            py_bin = os.path.abspath("./venv/bin/python3")
-            if not os.path.exists(py_bin):
-                py_bin = "python3"
-
-            res = subprocess.run([py_bin, script_path], capture_output=True, text=True)
-            logger.info(f"Render stdout: {res.stdout}")
-            if res.returncode != 0:
-                logger.error(f"Render stderr: {res.stderr}")
-
-            asyncio.run_coroutine_threadsafe(
-                PROGRESS_QUEUE.put({
-                    "filename": "RENDER",
+                    "filename": "ALL_RENDER",
                     "current": 1,
                     "total": 1,
                     "overall_progress": 100.0,
-                    "status_message": "🎉 Nihai Travel Vlog videosu başarıyla oluşturuldu!"
+                    "status_message": "🎉 Tüm seçilen video formatları (Long / Short) başarıyla oluşturuldu!"
                 }),
                 asyncio.get_event_loop()
             )
         except Exception as e:
-            logger.error(f"Render process failed: {e}")
+            logger.error(f"Render failure: {e}")
 
     background_tasks.add_task(run_render)
-    return {"message": "Video rendering başlatıldı", "output_video": "/media/final_travel_vlog.mp4"}
+    return {"message": f"{req.video_format} video kurgusu başlatıldı"}
 
 @app.get("/api/results")
 async def get_results():
@@ -181,13 +179,16 @@ async def get_results():
         PROCESSOR = VideoPipelineProcessor()
 
     storyboard = PROCESSOR.vlog_generator.generate_storyboard(PROCESSED_ITEMS)
-    video_exists = os.path.exists(os.path.join(CURRENT_OUTPUT_DIR, "final_travel_vlog.mp4"))
+    
+    long_exists = os.path.exists(os.path.join(CURRENT_OUTPUT_DIR, "final_travel_vlog_long.mp4"))
+    short_exists = os.path.exists(os.path.join(CURRENT_OUTPUT_DIR, "final_travel_vlog_short.mp4"))
 
     return {
         "total": len(PROCESSED_ITEMS),
         "videos": [item.model_dump() for item in PROCESSED_ITEMS],
         "storyboard": storyboard.model_dump(),
-        "rendered_video_url": "/media/final_travel_vlog.mp4" if video_exists else None
+        "rendered_long_video_url": "/media/final_travel_vlog_long.mp4" if long_exists else None,
+        "rendered_short_video_url": "/media/final_travel_vlog_short.mp4" if short_exists else None
     }
 
 # Static Mounts

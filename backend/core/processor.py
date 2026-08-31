@@ -32,26 +32,22 @@ class VideoPipelineProcessor:
         video_path: str,
         progress_cb: Optional[Callable[[str, float, str], None]] = None
     ) -> ProcessedVideoItem:
-        """Processes one video file through metadata, audio, and vision stages."""
         file_name = os.path.basename(video_path)
         video_id = str(uuid.uuid4())[:8]
 
         if progress_cb:
             progress_cb(file_name, 0.1, "Metadata ve EXIF GPS okunuyor...")
 
-        # Step 1: Metadata
         metadata = self.metadata_extractor.extract(video_path)
 
         if progress_cb:
             progress_cb(file_name, 0.4, "Ses konuşmaları (Whisper AI - Türkçe) çözümleniyor...")
 
-        # Step 2: Audio Transcription
         transcript = self.audio_transcriber.transcribe(video_path)
 
         if progress_cb:
             progress_cb(file_name, 0.7, "Görsel sahne ve aksiyonlar (Gemini Vision) analiz ediliyor...")
 
-        # Step 3: Vision Analysis
         location_ctx = metadata.location.place_name or ""
         vision = self.vision_analyzer.analyze(video_path, metadata.duration_seconds, location_ctx)
 
@@ -75,7 +71,6 @@ class VideoPipelineProcessor:
         output_dir: str,
         progress_cb: Optional[Callable[[str, int, int, float, str], None]] = None
     ) -> List[ProcessedVideoItem]:
-        """Processes all videos inside a directory."""
         if not os.path.exists(directory_path):
             raise FileNotFoundError(f"Dizin bulunamadı: {directory_path}")
 
@@ -112,7 +107,7 @@ class VideoPipelineProcessor:
             except Exception as e:
                 logger.error(f"{fname} işlenirken hata oluştu: {e}")
 
-        # Generate Master Catalog & Full End-to-End Turkish Vlog Script
+        # Master Storyboard & Scripts
         storyboard = self.vlog_generator.generate_storyboard(results)
 
         master_json_path = os.path.join(output_dir, "master_catalog.json")
@@ -124,16 +119,20 @@ class VideoPipelineProcessor:
             }
             json.dump(catalog_data, f, ensure_ascii=False, indent=2)
 
-        # Save Complete Turkish Vlog Script
-        script_path = os.path.join(output_dir, "final_vlog_script.md")
-        with open(script_path, "w", encoding="utf-8") as f:
+        # Save Scripts
+        long_script_path = os.path.join(output_dir, "final_vlog_script_long.md")
+        with open(long_script_path, "w", encoding="utf-8") as f:
             f.write(storyboard.full_vlog_script_tr)
+
+        short_script_path = os.path.join(output_dir, "final_vlog_script_short.md")
+        with open(short_script_path, "w", encoding="utf-8") as f:
+            f.write(storyboard.short_vlog_script_tr)
 
         prompt_path = os.path.join(output_dir, "vlog_prompt.md")
         with open(prompt_path, "w", encoding="utf-8") as f:
             f.write(storyboard.chat_ai_prompt)
 
-        render_script_path = os.path.join(output_dir, "render_vlog.py")
-        self.vlog_generator.generate_ffmpeg_script(storyboard, results, render_script_path)
+        # Generate Dual Render Scripts (Yatay 16:9 & Dik 9:16)
+        self.vlog_generator.generate_render_scripts(storyboard, results, output_dir)
 
         return results

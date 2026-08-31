@@ -19,14 +19,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const statSpeechVideos = document.getElementById('stat-speech-videos');
     const fullScriptPreview = document.getElementById('full-script-preview');
     const renderVideoBtn = document.getElementById('render-video-btn');
-    const copyScriptBtn = document.getElementById('copy-script-btn');
+    const renderFormatSelect = document.getElementById('render-format-select');
     const promptPreview = document.getElementById('prompt-preview');
     const copyPromptBtn = document.getElementById('copy-prompt-btn');
     const catalogSearch = document.getElementById('catalog-search');
 
-    const finalVlogPlayer = document.getElementById('final-vlog-player');
-    const noRenderMsg = document.getElementById('no-render-msg');
-    const downloadVideoLink = document.getElementById('download-video-link');
+    const longVlogPlayer = document.getElementById('long-vlog-player');
+    const noLongMsg = document.getElementById('no-long-msg');
+    const downloadLongLink = document.getElementById('download-long-link');
+
+    const shortVlogPlayer = document.getElementById('short-vlog-player');
+    const noShortMsg = document.getElementById('no-short-msg');
+    const downloadShortLink = document.getElementById('download-short-link');
 
     navButtons.forEach(btn => {
         btn.addEventListener('click', () => {
@@ -96,15 +100,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Render Video Button click handler
     renderVideoBtn.addEventListener('click', async () => {
+        const selectedFormat = renderFormatSelect.value;
         progressCard.classList.remove('hidden');
-        progressFilename.textContent = 'Videolar Birleştiriliyor (MoviePy Render)';
+        progressFilename.textContent = `Video Birleştiriliyor (${selectedFormat.toUpperCase()})`;
         progressStatusText.textContent = '🎬 Kurgu başlatılıyor...';
         progressBarFill.style.width = '30%';
 
         try {
-            const res = await fetch('/api/render_video', { method: 'POST' });
+            const res = await fetch('/api/render_video', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ video_format: selectedFormat })
+            });
             if (res.ok) {
                 alert('Video birleştirme başlatıldı! Canlı durum çubuğunu takip edebilirsiniz.');
             } else {
@@ -167,17 +175,27 @@ document.addEventListener('DOMContentLoaded', () => {
             currentStoryboard = data.storyboard || null;
 
             renderCatalog(currentVideos);
-            renderScript(currentStoryboard);
+            renderScripts(currentStoryboard);
             renderPrompt(currentStoryboard ? currentStoryboard.chat_ai_prompt : '');
 
-            // Rendered Video Player check
-            if (data.rendered_video_url) {
-                finalVlogPlayer.src = data.rendered_video_url;
-                finalVlogPlayer.classList.remove('hidden');
-                noRenderMsg.classList.add('hidden');
-                downloadVideoLink.href = data.rendered_video_url;
-                downloadVideoLink.classList.remove('hidden');
+            // Long-Form Player Check
+            if (data.rendered_long_video_url) {
+                longVlogPlayer.src = data.rendered_long_video_url;
+                longVlogPlayer.classList.remove('hidden');
+                noLongMsg.classList.add('hidden');
+                downloadLongLink.href = data.rendered_long_video_url;
+                downloadLongLink.classList.remove('hidden');
             }
+
+            // Short-Form Player Check
+            if (data.rendered_short_video_url) {
+                shortVlogPlayer.src = data.rendered_short_video_url;
+                shortVlogPlayer.classList.remove('hidden');
+                noShortMsg.classList.add('hidden');
+                downloadShortLink.href = data.rendered_short_video_url;
+                downloadShortLink.classList.remove('hidden');
+            }
+
         } catch (err) {
             console.error('Sonuçlar alınamadı:', err);
         }
@@ -229,29 +247,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }).join('');
     }
 
-    function renderScript(storyboard) {
-        if (!storyboard || !storyboard.full_vlog_script_tr) {
+    function renderScripts(storyboard) {
+        if (!storyboard) {
             fullScriptPreview.textContent = 'Henüz oluşturulmuş vlog senaryosu yok.';
             return;
         }
 
-        document.getElementById('storyboard-title').textContent = `Tam Vlog Senaryosu: ${storyboard.vlog_title}`;
-        fullScriptPreview.textContent = storyboard.full_vlog_script_tr;
+        document.getElementById('storyboard-title').textContent = `Tam Vlog Senaryoları: ${storyboard.vlog_title}`;
+        
+        const combinedScript = `${storyboard.full_vlog_script_tr || ''}\n\n=======================================================\n\n${storyboard.short_vlog_script_tr || ''}`;
+        fullScriptPreview.textContent = combinedScript;
     }
 
     function renderPrompt(promptText) {
         promptPreview.textContent = promptText || 'Henüz istem oluşturulamadı.';
     }
-
-    copyScriptBtn.addEventListener('click', () => {
-        const text = fullScriptPreview.textContent;
-        navigator.clipboard.writeText(text).then(() => {
-            copyScriptBtn.innerHTML = '<i class="fa-solid fa-check"></i> Senaryo Kopyalandı!';
-            setTimeout(() => {
-                copyScriptBtn.innerHTML = '<i class="fa-regular fa-copy"></i> Senaryoyu Kopyala';
-            }, 2000);
-        });
-    });
 
     copyPromptBtn.addEventListener('click', () => {
         const text = promptPreview.textContent;
