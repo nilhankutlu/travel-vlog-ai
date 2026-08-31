@@ -7,7 +7,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const folderPathInput = document.getElementById('folder-path-input');
     const startFolderBtn = document.getElementById('start-folder-btn');
     const whisperModelSelect = document.getElementById('whisper-model-select');
-    const geminiKeyInput = document.getElementById('gemini-key-input');
     const progressCard = document.getElementById('progress-card');
     const progressBarFill = document.getElementById('progress-bar-fill');
     const progressStatusText = document.getElementById('progress-status-text');
@@ -85,7 +84,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     folder_path: folderPath,
-                    gemini_api_key: geminiKeyInput.value.trim() || null,
                     whisper_model: whisperModelSelect.value
                 })
             });
@@ -143,9 +141,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const formData = new FormData();
         formData.append('file', file);
-        if (geminiKeyInput.value.trim()) {
-            formData.append('gemini_api_key', geminiKeyInput.value.trim());
-        }
 
         try {
             const res = await fetch('/api/upload_video', {
@@ -178,7 +173,6 @@ document.addEventListener('DOMContentLoaded', () => {
             renderScripts(currentStoryboard);
             renderPrompt(currentStoryboard ? currentStoryboard.chat_ai_prompt : '');
 
-            // Long-Form Player Check
             if (data.rendered_long_video_url) {
                 longVlogPlayer.src = data.rendered_long_video_url;
                 longVlogPlayer.classList.remove('hidden');
@@ -187,7 +181,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 downloadLongLink.classList.remove('hidden');
             }
 
-            // Short-Form Player Check
             if (data.rendered_short_video_url) {
                 shortVlogPlayer.src = data.rendered_short_video_url;
                 shortVlogPlayer.classList.remove('hidden');
