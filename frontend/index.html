@@ -80,7 +80,7 @@
                             <i class="fa-solid fa-folder-tree icon-primary"></i>
                             <h3>Toplu Klasör İşleme (Yüzlerce Video)</h3>
                         </div>
-                        <p class="card-desc">Bilgisayarınızdaki seyahat videoları klasör yolunu girin. Türkçe konuşmalar, GPS konumları ve görseller otomatik işlenip seçilen stratejik modda hazırlanacaktır.</p>
+                        <p class="card-desc">Bilgisayarınızdaki seyahat videoları klasör yolunu girin. Türkçe konuşmalar, GPS konumları ve görseller otomatik taranıp analiz edilecektir.</p>
 
                         <div class="form-group">
                             <label for="folder-path-input">Klasör Yolu (Absolute Path):</label>
@@ -103,13 +103,8 @@
                                 </select>
                             </div>
                             <div class="form-group half">
-                                <label for="short-mode-select">Shorts / Reels Strateji Modu:</label>
-                                <select id="short-mode-select">
-                                    <option value="1" selected>MOD 1: Ham Video Bankası (3 Farklı Viral Fikir)</option>
-                                    <option value="2">MOD 2: Mekan İçerikleri (Estetik Kolaj & Bilgiler)</option>
-                                    <option value="3">MOD 3: Bir Günümüz (Day-In-The-Life Timeline)</option>
-                                    <option value="4">MOD 4: Travel Trick / Hack (Pratik İpuçları)</option>
-                                </select>
+                                <label>Desteklenen Biçimler:</label>
+                                <span class="tag">MP4</span> <span class="tag">MOV</span> <span class="tag">Insta360</span> <span class="tag">GoPro</span>
                             </div>
                         </div>
                     </div>
@@ -172,15 +167,28 @@
                         <h3 id="storyboard-title">Stratejik Yapay Zeka Tarafından Üretilen Tam Vlog Senaryoları</h3>
                     </div>
 
-                    <!-- Render Controls -->
-                    <div style="display: flex; gap: 12px; margin-bottom: 20px; align-items: center; background: rgba(0,0,0,0.3); padding: 14px; border-radius: 12px;">
-                        <span style="font-weight: 600; font-size: 14px;">Kurgulanacak Video Formatı:</span>
-                        <select id="render-format-select" style="padding: 8px 14px;">
-                            <option value="both" selected>🌟 Her İkisini De Oluştur (Yatay Long 16:9 + Dik Short 9:16)</option>
-                            <option value="long">🎬 Sadece Long-Form (Yatay 16:9 YouTube)</option>
-                            <option value="short">📱 Sadece Short-Form (Dik 9:16 Reels/TikTok/Shorts)</option>
-                        </select>
-                        <button id="render-video-btn" class="btn btn-primary btn-sm">
+                    <!-- Mode & Render Controls -->
+                    <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; align-items: center; background: rgba(0,0,0,0.3); padding: 14px; border-radius: 12px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-weight: 600; font-size: 13px;">Shorts / Reels Modu:</span>
+                            <select id="short-mode-select" style="padding: 8px 12px;">
+                                <option value="1" selected>MOD 1: Ham Video Bankası (3 Viral Fikir)</option>
+                                <option value="2">MOD 2: Mekan İçerikleri (Estetik & Bilgiler)</option>
+                                <option value="3">MOD 3: Bir Günümüz (Day-In-The-Life)</option>
+                                <option value="4">MOD 4: Travel Trick / Hack (Pratik Hileler)</option>
+                            </select>
+                        </div>
+
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-weight: 600; font-size: 13px;">Format:</span>
+                            <select id="render-format-select" style="padding: 8px 12px;">
+                                <option value="both" selected>🌟 Her İkisini De Oluştur (Long + Short)</option>
+                                <option value="long">🎬 Sadece Long-Form (Yatay 16:9)</option>
+                                <option value="short">📱 Sadece Short-Form (Dik 9:16)</option>
+                            </select>
+                        </div>
+
+                        <button id="render-video-btn" class="btn btn-primary btn-sm" style="margin-left: auto;">
                             <i class="fa-solid fa-film"></i> Videoları Oluştur (Render)
                         </button>
                     </div>

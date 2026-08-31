@@ -47,6 +47,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    if (shortModeSelect) {
+        shortModeSelect.addEventListener('change', () => {
+            fetchResults();
+        });
+    }
+
     function initSSEStream() {
         const evtSource = new EventSource('/api/status_stream');
         evtSource.addEventListener('progress', (e) => {
@@ -85,8 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     folder_path: folderPath,
-                    whisper_model: whisperModelSelect.value,
-                    short_mode: parseInt(shortModeSelect.value)
+                    whisper_model: whisperModelSelect.value
                 })
             });
 
@@ -102,6 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     renderVideoBtn.addEventListener('click', async () => {
         const selectedFormat = renderFormatSelect.value;
+        const selectedMode = shortModeSelect ? shortModeSelect.value : 1;
         progressCard.classList.remove('hidden');
         progressFilename.textContent = `Video Birleştiriliyor (${selectedFormat.toUpperCase()})`;
         progressStatusText.textContent = '🎬 Kurgu başlatılıyor...';
@@ -113,7 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     video_format: selectedFormat,
-                    short_mode: parseInt(shortModeSelect.value)
+                    short_mode: parseInt(selectedMode)
                 })
             });
             if (res.ok) {
@@ -146,7 +152,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const formData = new FormData();
         formData.append('file', file);
-        formData.append('short_mode', shortModeSelect.value);
 
         try {
             const res = await fetch('/api/upload_video', {
