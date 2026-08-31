@@ -21,8 +21,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const statSpeechVideos = document.getElementById('stat-speech-videos');
     const fullScriptPreview = document.getElementById('full-script-preview');
     const renderVideoBtn = document.getElementById('render-video-btn');
-    const promptPreview = document.getElementById('prompt-preview');
-    const copyPromptBtn = document.getElementById('copy-prompt-btn');
     const catalogSearch = document.getElementById('catalog-search');
 
     const longVlogPlayer = document.getElementById('long-vlog-player');
@@ -42,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.classList.add('active');
             document.getElementById(targetTab).classList.add('active');
 
-            if (targetTab === 'catalog-tab' || targetTab === 'video-render-tab' || targetTab === 'prompt-tab') {
+            if (targetTab === 'catalog-tab' || targetTab === 'video-render-tab') {
                 fetchResults();
             }
         });
@@ -197,7 +195,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             renderCatalog(currentVideos);
             renderScripts(currentStoryboard);
-            renderPrompt(currentStoryboard ? currentStoryboard.chat_ai_prompt : '');
 
             if (data.rendered_long_video_url) {
                 longVlogPlayer.src = data.rendered_long_video_url;
@@ -275,20 +272,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const combinedScript = `${storyboard.full_vlog_script_tr || ''}\n\n=======================================================\n\n${storyboard.short_vlog_script_tr || ''}`;
         fullScriptPreview.textContent = combinedScript;
     }
-
-    function renderPrompt(promptText) {
-        promptPreview.textContent = promptText || 'Henüz istem oluşturulamadı.';
-    }
-
-    copyPromptBtn.addEventListener('click', () => {
-        const text = promptPreview.textContent;
-        navigator.clipboard.writeText(text).then(() => {
-            copyPromptBtn.innerHTML = '<i class="fa-solid fa-check"></i> Kopyalandı!';
-            setTimeout(() => {
-                copyPromptBtn.innerHTML = '<i class="fa-regular fa-copy"></i> İstem Metnini Kopyala';
-            }, 2000);
-        });
-    });
 
     catalogSearch.addEventListener('input', (e) => {
         const term = e.target.value.toLowerCase();
