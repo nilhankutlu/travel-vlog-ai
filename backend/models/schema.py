@@ -77,7 +77,9 @@ class MasterVlogStoryboard(BaseModel):
     storyline: List[VlogSegment] = []
     full_vlog_script_tr: str = ""
     short_vlog_script_tr: str = ""
+    short_mode: int = 1
     chat_ai_prompt: str = ""
 
 class RenderVideoRequest(BaseModel):
     video_format: str = "both"  # "long", "short", "both"
+    short_mode: int = 1         # 1: Ham Video Bankası, 2: Mekan İçerikleri, 3: Bir Günümüz, 4: Trick/Hack

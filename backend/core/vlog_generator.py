@@ -6,16 +6,35 @@ from backend.models.schema import ProcessedVideoItem, MasterVlogStoryboard, Vlog
 
 logger = logging.getLogger(__name__)
 
+# Exact Persona & Rules from User's Strategy Directive
+SHORT_FORM_SYSTEM_DIRECTIVE = """
+ROL:
+Sen TikTok ve Instagram Reels algoritmasını derinlemesine bilen, gündemi anlık takip eden bir içerik editörü/stratejistsin.
+
+HESAP TEMASI: gezi/travel, lifestyle, vlog, comedy
+HEDEF KİTLE: 20-50 yaş, Türkiye gezi içeriği takipçileri
+
+TON KURALI:
+Ne aşırı laubali/argo ol ne de kurumsal/resmi bir ton kullan. Deneyimli, esprili ama bilgisine güvenilen bir gezgin arkadaş gibi yaz. Emoji'yi ölçülü kullan, Gen Z/millennial ifadelerini serpiştir ama abartma. "Bu videoda görüldüğü üzere" tarzı anlatıcı/didaktik cümlelerden tamamen kaçın.
+
+GENEL YASAKLAR:
+- Düz kolaj/highlight reel önerme (Mod 1'de)
+- Şarkı sözü veya başka içerikten alıntı kullanma
+- Klişe caption ("unutulmaz anlar", "hayatın güzellikleri" vb. KESİNLİKLE YASAK)
+
+ÇIKTI FORMATI: Numaralandır, uzun girizgah yazma, direkt kullanıma hazır madde madde yaz.
+"""
+
 class VlogGenerator:
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.environ.get("GEMINI_API_KEY")
 
-    def generate_ai_vlog_scripts(self, title: str, videos: List[ProcessedVideoItem], prompt_text: str) -> tuple:
-        """Uses Gemini API to write both Long-form (YouTube 16:9) and Short-form (Shorts/Reels 9:16) Vlog scripts."""
+    def generate_ai_vlog_scripts(self, title: str, videos: List[ProcessedVideoItem], prompt_text: str, short_mode: int = 1) -> tuple:
+        """Uses Gemini API with user's exact persona prompt to generate Long-Form and 4 Short-Form Viral Modes."""
         if not self.api_key:
             return (
                 self.generate_fallback_long_script(title, videos),
-                self.generate_fallback_short_script(title, videos)
+                self.generate_fallback_short_script(title, videos, short_mode)
             )
 
         try:
@@ -24,26 +43,54 @@ class VlogGenerator:
 
             client = genai.Client(api_key=self.api_key)
 
-            system_instruction = """
-Sen dünyaca ünlü bir YouTube & TikTok/Reels Travel Content Creator'ısın.
-Sana verilen seyahat videoları verilerinden HEM LONG-FORM (Yatay 16:9) HEM DE SHORT-FORM (Dik 9:16 TikTok/Reels/Shorts) iki ayrı senaryo hazırlayacaksın.
+            mode_instructions = {
+                1: """MOD 1 — HAM VİDEO BANKASI:
+Bu videolardan birbirinden bağımsız en az 3 farklı reels/tiktok fikri çıkar. Her fikir için:
+1. HOOK — ilk 1-2 saniyelik açılış cümlesi/yazısı
+2. SAHNELER — başlangıç/bitiş zaman kodları + neden seçildiği
+3. EKRAN YAZILARI — hangi sahnede hangi yazı
+4. SES — orijinal ses mi trend ses mi ve neden
+5. CAPTION + HASHTAG (3-5 hashtag)
+6. NEDEN İŞE YARAR — 1 cümle
+""",
+                2: """MOD 2 — MEKAN İÇERİKLERİ:
+A) ESTETİK KOLAJ İÇİN TAMAMLAYICI ÖĞELER: Müzik önerisi, 2-3 overlay yazı, Caption + hashtag.
+B) SESLENDİRME SCRİPTİ: Mekan hakkında 1-2 ilgi çekici doğru bilgi içeren konuşma scripti, saniye eşleştirmesi, Caption + hashtag.
+""",
+                3: """MOD 3 — BİR GÜNÜMÜZ (DAY-IN-THE-LIFE):
+A) KOLAJ TAMAMLAYICILARI: Zaman/aktivite overlay önerileri (örn: 08:30 — kahvaltı), müzik önerisi, Caption + hashtag.
+B) SESLENDİRME SCRİPTİ: Kronolojik doğal konuşma dili scripti, saniye eşleştirmeleri, samimi/mizahi dokunuşlar, Caption + hashtag.
+""",
+                4: """MOD 4 — TRİCK/HACK VİDEOLARI:
+SADECE seslendirme scripti üret:
+- HOOK — merak uyandıran "böyle yapma" tarzı açılış
+- SORUN — insanların genelde yaptığı hata
+- ÇÖZÜM — adım adım trick anlatımı
+- SONUÇ — rakamsal kazanç/fayda kapanışı
+- Saniye bazlı sahne eşleştirmesi, Caption + hashtag.
+"""
+            }
 
-Lütfen yanıtı şu başlıklarla ver:
+            selected_mode_prompt = mode_instructions.get(short_mode, mode_instructions[1])
 
+            combined_system_prompt = f"""{SHORT_FORM_SYSTEM_DIRECTIVE}
+
+GÖREV:
+Aşağıda verilen seyahat videoları verilerini kullanarak HEM 16:9 LONG-FORM VLOG SENARYOSU HEM DE SEÇİLEN MODDA ({short_mode}) 9:16 SHORT-FORM REELS/TIKTOK SENARYOSU HAZIRLA.
+
+SEÇİLEN SHORT-FORM MODU:
+{selected_mode_prompt}
+
+ÇIKTI BAŞLIKLARI:
 # 🎬 1. LONG-FORM YATAY VLOG SENARYOSU (16:9 YouTube)
-- Hikaye akışlı intro, sahne sahne detaylı seslendirme (voiceover) metinleri ve kapanış.
-
----
-
-# 📱 2. SHORT-FORM DİK VLOG SENARYOSU (9:16 Instagram Reels / TikTok / Shorts)
-- En yüksek estetik puana sahip sahnelerden hızlı 15-30 saniyelik tempolu metin, kanca (hook) cümlesi ve trend müzik önerisi.
+# 📱 2. SHORT-FORM REELS / TIKTOK SENARYOSU (9:16 - MOD {short_mode})
 """
 
             response = client.models.generate_content(
                 model='gemini-2.0-flash',
-                contents=[system_instruction, f"İşlenecek Video Verileri:\n{prompt_text}"],
+                contents=[combined_system_prompt, f"İşlenecek Video Verileri ve Konumlar:\n{prompt_text}"],
                 config=types.GenerateContentConfig(
-                    temperature=0.3
+                    temperature=0.4
                 )
             )
 
@@ -57,7 +104,7 @@ Lütfen yanıtı şu başlıklarla ver:
 
         return (
             self.generate_fallback_long_script(title, videos),
-            self.generate_fallback_short_script(title, videos)
+            self.generate_fallback_short_script(title, videos, short_mode)
         )
 
     def generate_fallback_long_script(self, title: str, videos: List[ProcessedVideoItem]) -> str:
@@ -70,13 +117,13 @@ Lütfen yanıtı şu başlıklarla ver:
 ---
 
 ## 🚀 INTRO (00:00 - 00:15)
-- **Dış Ses (Voiceover)**: *"Merhaba arkadaşlar! Bugün harika bir seyahate çıkıyoruz. İşte keşfettiğimiz en güzel noktalar!"*
+- **Dış Ses (Voiceover)**: *"Selamlar! Bugün bavulları topladık ve harika yerleri keşfetmeye gidiyoruz. İnanılmaz manzaralar ve sürprizler var, hazır mısınız?"*
 
 ## 📹 SAHNE AKIŞI
 """
         for idx, v in enumerate(videos, 1):
             loc_str = v.metadata.location.place_name or v.metadata.location.city or "Keşif Noktası"
-            narration = v.transcript.full_text if (v.transcript.has_speech and len(v.transcript.full_text) > 10) else f"Şu an {loc_str} konumundayız. Buraları keşfetmek gerçekten büyüleyici!"
+            narration = v.transcript.full_text if (v.transcript.has_speech and len(v.transcript.full_text) > 10) else f"Şu an {loc_str} konumundayız. Buraların enerjisi ve manzarası harika!"
             script += f"""### Sahne {idx}: {loc_str} (`{v.metadata.file_name}`)
 - **Süre**: 00:00 - {min(v.metadata.duration_seconds, 15.0)}s
 - **Dış Ses Metni**: "{narration}"
@@ -84,27 +131,70 @@ Lütfen yanıtı şu başlıklarla ver:
 """
         return script
 
-    def generate_fallback_short_script(self, title: str, videos: List[ProcessedVideoItem]) -> str:
+    def generate_fallback_short_script(self, title: str, videos: List[ProcessedVideoItem], mode: int = 1) -> str:
         top_videos = sorted(videos, key=lambda x: x.vision.aesthetic_score, reverse=True)[:3]
-        script = f"""# 📱 SHORT-FORM DİK REELS / TIKTOK / SHORTS SENARYOSU (9:16)
+        
+        mode_titles = {
+            1: "MOD 1 — HAM VİDEO BANKASI (3 FARKLI VİRAL REELS FİKRİ)",
+            2: "MOD 2 — MEKAN İÇERİKLERİ (ESTETİK KOLAJ & İLGİNÇ BİLGİLER)",
+            3: "MOD 3 — BİR GÜNÜMÜZ (DAY-IN-THE-LIFE & SAAT OVERLAYLERİ)",
+            4: "MOD 4 — TRİCK / HACK VİDEOLARI (PRATİK TAVSİYELER & Hileler)"
+        }
 
-**Başlık**: {title} - Highlights  
-**Format**: Dik (9:16) - 1080x1920  
-**Müzik Önerisi**: Trending Viral Bass / Fast Travel Beat  
-**Kanca (Hook)**: *"Ölmeden önce mutlaka görmeniz gereken 3 yer!"*
+        script = f"""# 📱 SHORT-FORM REELS / TIKTOK SENARYOSU (9:16)
+## {mode_titles.get(mode, mode_titles[1])}
+
+**Hedef Kitle**: 20-50 yaş Gezi Takipçileri  
+**Ton**: Deneyimli, esprili gezgin arkadaş  
 
 ---
-
-## ⚡ HIZLI HİGHLIGHT KESİMLERİ (15-30 Saniye)
 """
-        for idx, v in enumerate(top_videos, 1):
-            loc_str = v.metadata.location.place_name or "Mekan"
-            script += f"""- **00:0{idx*2} - 00:0{idx*2+3}**: `{v.metadata.file_name}` | 📌 `{loc_str}` (Estetik: {v.vision.aesthetic_score}/10)
-  - Ekran Metni: "📍 {loc_str}"
+        if mode == 1:
+            for idx, v in enumerate(top_videos, 1):
+                loc_str = v.metadata.location.place_name or "Gezilecek Yer"
+                script += f"""### 🚀 VİRAL FİKİR {idx}: {loc_str}
+1. **HOOK (İlk 2 Saniye)**: "Burası Türkiye'de ama kendinizi yurtdışında hissettirecek!"
+2. **SAHNELER**: `{v.metadata.file_name}` (00:00 - 00:03.5s) -> Yüksek estetik açı ({v.vision.aesthetic_score}/10)
+3. **EKRAN YAZISI**: "📌 {loc_str} | Kaydetmeyi unutma!"
+4. **SES**: Trend Lo-Fi Travel Beats
+5. **CAPTION & HASHTAGS**: Burayı görmeden rotanızı çizmeyin! #gezi #travel #turkey #reels #gezgin
+6. **NEDEN İŞE YARAR**: Merak uyandıran gizli mekan formatına uyuyor.
+
+---
+"""
+        elif mode == 2:
+            loc_first = top_videos[0].metadata.location.place_name if top_videos else "Özel Mekan"
+            script += f"""### A) ESTETİK KOLAJ ÖĞELERİ
+- **Müzik**: Chill Ambient Travel Sound
+- **Overlay Yazılar**: "📍 {loc_first}" | "Saklı Cennet"
+- **Caption**: Bu mekana gitmeden önce bilinmesi gereken detaylar. #mekan #gezi
+
+### B) SESLENDİRME SCRİPTİ
+- **00:00 - 00:03 (Giriş)**: "{loc_first} hakkında bilmeniz gereken en ilginç detay..."
+- **00:03 - 00:08 (Bilgi)**: "Burası tarihi dokusu ve manzarasıyla öne çıkıyor."
+- **Caption**: #seyahat #rehber #gezi
+"""
+        elif mode == 3:
+            script += f"""### A) SAAT & AKTİVİTE OVERLAYLERİ
+- **08:30**: 🍳 Güne Başlangıç & Kahvaltı
+- **12:00**: 🏛️ Tarihi Sokaklarda Keşif
+- **18:30**: 🌅 Gün Batımı Manzarası
+
+### B) SESLENDİRME SCRİPTİ
+- **00:00 - 00:05**: "Bugün beraber harika bir gün geçiriyoruz! Sabah erkenden yola çıktık..."
+- **Caption**: Bir günümüz böyle geçti! Siz en çok hangi anı beğendiniz? #dayinthelife #vlog #gezi
+"""
+        else: # Mod 4
+            script += f"""### 💡 TRAVEL TRICK / HACK SCRİPTİ
+- **HOOK**: "Sakın bu hatayı yapıp fazla para ödemeyin!"
+- **SORUN**: "Çoğu kişi buraya gidişte pahalı bilet alıyor."
+- **ÇÖZÜM**: "Bunun yerine bu gizli yöntemi uygulayın..."
+- **SONUÇ**: "Yarı yarıya tasarruf edebilirsiniz!"
+- **Caption**: Bu ipucunu kaydetmeyi unutmayın! #travelhack #geziipucu #tasarruf
 """
         return script
 
-    def generate_storyboard(self, processed_videos: List[ProcessedVideoItem], vlog_title: str = "Harika Seyahat Maceram") -> MasterVlogStoryboard:
+    def generate_storyboard(self, processed_videos: List[ProcessedVideoItem], vlog_title: str = "Harika Seyahat Maceram", short_mode: int = 1) -> MasterVlogStoryboard:
         sorted_videos = sorted(
             processed_videos,
             key=lambda x: x.metadata.creation_time or ""
@@ -137,7 +227,7 @@ Lütfen yanıtı şu başlıklarla ver:
 
         loc_str = ", ".join(list(locations_visited)[:5])
         prompt_text = self.build_ai_vlog_prompt(vlog_title, sorted_videos, segments)
-        long_script, short_script = self.generate_ai_vlog_scripts(vlog_title, sorted_videos, prompt_text)
+        long_script, short_script = self.generate_ai_vlog_scripts(vlog_title, sorted_videos, prompt_text, short_mode)
 
         return MasterVlogStoryboard(
             vlog_title=vlog_title,
@@ -147,6 +237,7 @@ Lütfen yanıtı şu başlıklarla ver:
             storyline=segments,
             full_vlog_script_tr=long_script,
             short_vlog_script_tr=short_script,
+            short_mode=short_mode,
             chat_ai_prompt=prompt_text
         )
 
@@ -180,7 +271,6 @@ Lütfen yanıtı şu başlıklarla ver:
         return prompt
 
     def generate_render_scripts(self, storyboard: MasterVlogStoryboard, videos: List[ProcessedVideoItem], output_dir: str):
-        """Generates both Long-Form (1920x1080 16:9 Yatay) and Short-Form (1080x1920 9:16 Dik) render scripts."""
         video_map = {item.video_id: item.metadata.file_path for item in videos}
 
         # 1. LONG-FORM RENDER SCRIPT (Yatay 16:9 - 1920x1080)
@@ -227,7 +317,6 @@ if clips:
         short_script_path = os.path.join(output_dir, "render_short_vlog.py")
         short_output_path = os.path.join(output_dir, "final_travel_vlog_short.mp4")
 
-        # Select top aesthetic videos for Short-form reels (max 3 seconds per cut)
         top_videos = sorted(videos, key=lambda x: x.vision.aesthetic_score, reverse=True)[:5]
 
         short_content = f"""#!/usr/bin/env python3
@@ -250,7 +339,6 @@ clips = []
 if os.path.exists(r"{fp}"):
     try:
         clip = VideoFileClip(r"{fp}").subclip(0, min({item.metadata.duration_seconds}, 3.5))
-        # Center-crop to 9:16 ratio (1080x1920)
         (w, h) = clip.size
         target_w = int(h * 9 / 16)
         if target_w < w:
@@ -271,7 +359,6 @@ if clips:
             f.write(short_content)
         os.chmod(short_script_path, 0o755)
 
-        # Legacy compatibility link
         legacy_script = os.path.join(output_dir, "render_vlog.py")
         with open(legacy_script, "w", encoding="utf-8") as f:
             f.write(long_content)

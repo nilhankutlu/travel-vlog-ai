@@ -28,6 +28,7 @@ class ProcessFolderRequest(BaseModel):
     folder_path: str
     gemini_api_key: Optional[str] = None
     whisper_model: str = "base"
+    short_mode: int = 1
 
 @app.on_event("startup")
 async def startup_event():
@@ -89,7 +90,7 @@ async def process_folder(req: ProcessFolderRequest, background_tasks: Background
                     "current": len(PROCESSED_ITEMS),
                     "total": len(PROCESSED_ITEMS),
                     "overall_progress": 100.0,
-                    "status_message": "Tüm videolar, Yatay Long ve Dik Short Senaryoları başarıyla oluşturuldu!"
+                    "status_message": "Tüm videolar ve seçilen Shorts/Reels Modu senaryoları başarıyla oluşturuldu!"
                 }),
                 asyncio.get_event_loop()
             )
@@ -100,7 +101,7 @@ async def process_folder(req: ProcessFolderRequest, background_tasks: Background
     return {"message": "Batch video işleme başlatıldı", "folder": req.folder_path}
 
 @app.post("/api/upload_video")
-async def upload_video(file: UploadFile = File(...), gemini_api_key: Optional[str] = Form(None)):
+async def upload_video(file: UploadFile = File(...), gemini_api_key: Optional[str] = Form(None), short_mode: int = Form(1)):
     global PROCESSOR, PROCESSED_ITEMS
     temp_dir = os.path.join(CURRENT_OUTPUT_DIR, "uploads")
     os.makedirs(temp_dir, exist_ok=True)
@@ -116,7 +117,7 @@ async def upload_video(file: UploadFile = File(...), gemini_api_key: Optional[st
     item = PROCESSOR.process_single_video(file_path)
     PROCESSED_ITEMS.append(item)
 
-    storyboard = PROCESSOR.vlog_generator.generate_storyboard(PROCESSED_ITEMS)
+    storyboard = PROCESSOR.vlog_generator.generate_storyboard(PROCESSED_ITEMS, short_mode=short_mode)
 
     return {
         "item": item.model_dump(),
@@ -126,7 +127,6 @@ async def upload_video(file: UploadFile = File(...), gemini_api_key: Optional[st
 
 @app.post("/api/render_video")
 async def render_video(req: RenderVideoRequest, background_tasks: BackgroundTasks):
-    """Triggers render for Long (16:9 Yatay), Short (9:16 Dik), or Both formats."""
     py_bin = os.path.abspath("./venv/bin/python3")
     if not os.path.exists(py_bin):
         py_bin = "python3"
@@ -173,12 +173,12 @@ async def render_video(req: RenderVideoRequest, background_tasks: BackgroundTask
     return {"message": f"{req.video_format} video kurgusu başlatıldı"}
 
 @app.get("/api/results")
-async def get_results():
+async def get_results(short_mode: int = 1):
     global PROCESSED_ITEMS, PROCESSOR
     if not PROCESSOR:
         PROCESSOR = VideoPipelineProcessor()
 
-    storyboard = PROCESSOR.vlog_generator.generate_storyboard(PROCESSED_ITEMS)
+    storyboard = PROCESSOR.vlog_generator.generate_storyboard(PROCESSED_ITEMS, short_mode=short_mode)
     
     long_exists = os.path.exists(os.path.join(CURRENT_OUTPUT_DIR, "final_travel_vlog_long.mp4"))
     short_exists = os.path.exists(os.path.join(CURRENT_OUTPUT_DIR, "final_travel_vlog_short.mp4"))

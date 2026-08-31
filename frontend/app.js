@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const folderPathInput = document.getElementById('folder-path-input');
     const startFolderBtn = document.getElementById('start-folder-btn');
     const whisperModelSelect = document.getElementById('whisper-model-select');
+    const shortModeSelect = document.getElementById('short-mode-select');
     const progressCard = document.getElementById('progress-card');
     const progressBarFill = document.getElementById('progress-bar-fill');
     const progressStatusText = document.getElementById('progress-status-text');
@@ -84,7 +85,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     folder_path: folderPath,
-                    whisper_model: whisperModelSelect.value
+                    whisper_model: whisperModelSelect.value,
+                    short_mode: parseInt(shortModeSelect.value)
                 })
             });
 
@@ -109,7 +111,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch('/api/render_video', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ video_format: selectedFormat })
+                body: JSON.stringify({
+                    video_format: selectedFormat,
+                    short_mode: parseInt(shortModeSelect.value)
+                })
             });
             if (res.ok) {
                 alert('Video birleştirme başlatıldı! Canlı durum çubuğunu takip edebilirsiniz.');
@@ -141,6 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const formData = new FormData();
         formData.append('file', file);
+        formData.append('short_mode', shortModeSelect.value);
 
         try {
             const res = await fetch('/api/upload_video', {
@@ -164,7 +170,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function fetchResults() {
         try {
-            const res = await fetch('/api/results');
+            const mode = shortModeSelect ? shortModeSelect.value : 1;
+            const res = await fetch(`/api/results?short_mode=${mode}`);
             const data = await res.json();
             currentVideos = data.videos || [];
             currentStoryboard = data.storyboard || null;
