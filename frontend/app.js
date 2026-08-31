@@ -41,7 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.classList.add('active');
             document.getElementById(targetTab).classList.add('active');
 
-            if (targetTab === 'catalog-tab' || targetTab === 'storyboard-tab' || targetTab === 'video-render-tab' || targetTab === 'prompt-tab') {
+            if (targetTab === 'catalog-tab' || targetTab === 'video-render-tab' || targetTab === 'prompt-tab') {
                 fetchResults();
             }
         });
@@ -258,8 +258,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        document.getElementById('storyboard-title').textContent = `Tam Vlog Senaryoları: ${storyboard.vlog_title}`;
-        
         const combinedScript = `${storyboard.full_vlog_script_tr || ''}\n\n=======================================================\n\n${storyboard.short_vlog_script_tr || ''}`;
         fullScriptPreview.textContent = combinedScript;
     }
