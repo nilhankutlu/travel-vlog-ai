@@ -25,11 +25,11 @@ class VlogGenerator:
 Sen dünyaca ünlü bir YouTube Travel Vlogger'ı ve Profesyonel Video Kurgu Yönetmenisin.
 Sana verilen seyahat videolarının (EXIF konumları, zamanları, ses konuşmaları ve görsel analizleri) verilerini kullanarak:
 
-BAŞINDAN SONUNA TAM BİR TRAVEL VLOG SENARYOSU YAZACAKSIN.
+BAŞINDAN SONUNA TAM BİR TRAVEL VLOG SENARYOSU VE DIŞ SES METNİ YAZACAKSIN.
 
 Senaryoda tam olarak şunlar yer almalıdır:
 1. 🎬 **VLOG BAŞLIĞI VE ÖZETİ**: 3 Farklı YouTube Başlık Önerisi, Sosyal Media Hashtagleri.
-2. 🎵 **MÜZİK & ATMOFER**: Giriş, gelişme ve sonuç için fon müziği ve ses efekti (SFX) rehberi.
+2. 🎵 **MÜZİK & ATMOSFER**: Giriş, gelişme ve sonuç için fon müziği ve ses efekti (SFX) rehberi.
 3. 🚀 **INTRO (GİRİŞ - 00:00 - 00:15)**: Dikkat çekici ilk 15 saniye kurgu ve seslendirme metni.
 4. 📹 **SAHNE SAHNE KURGU VE DİŞ SES METNİ (VOICEOVER)**:
    - Hangi videodan hangi saniyeler alınacak?
@@ -56,8 +56,7 @@ Lütfen yanıtı son derece detaylı, hazır okunabilir akıcı Türkçe ile ver
         return self.generate_fallback_vlog_script(title, videos)
 
     def generate_fallback_vlog_script(self, title: str, videos: List[ProcessedVideoItem]) -> str:
-        """Fallback script generator if Gemini API key is not provided."""
-        script = f"""# 🎬 TAM TRAVEL VLOG SENARYOSU VE KURGU PLANI
+        script = f"""# 🎬 TAM TRAVEL VLOG SENARYOSU VE DIŞ SES KURGU METNİ
 
 **Vlog Başlığı**: {title}  
 **İşlenen Video Sayısı**: {len(videos)}  
@@ -80,7 +79,7 @@ Lütfen yanıtı son derece detaylı, hazır okunabilir akıcı Türkçe ile ver
             narration = v.transcript.full_text if (v.transcript.has_speech and len(v.transcript.full_text) > 10) else f"Şu an {loc_str} konumundayız. Etraftaki atmosfer harika, buranın manzarası büyüleyici!"
 
             script += f"""### SAHNE {idx}: {loc_str} (`{v.metadata.file_name}`)
-- **Kutlama / Süre**: 00:00 - {min(v.metadata.duration_seconds, 12.0)}s
+- **Kesim Süresi**: 00:00 - {min(v.metadata.duration_seconds, 12.0)}s
 - **Ekran Konum Yazısı**: `📌 {loc_str}`
 - **Görsel**: {v.vision.summary} ({v.vision.camera_movement})
 - **Dış Ses (Okunacak Metin)**:
@@ -97,8 +96,7 @@ Lütfen yanıtı son derece detaylı, hazır okunabilir akıcı Türkçe ile ver
 """
         return script
 
-    def generate_storyboard(self, processed_videos: List[ProcessedVideoItem], vlog_title: str = "Unforgettable Travel Journey") -> MasterVlogStoryboard:
-        """Constructs a chronological travel vlog storyboard from analyzed video items."""
+    def generate_storyboard(self, processed_videos: List[ProcessedVideoItem], vlog_title: str = "Harika Seyahat Maceram") -> MasterVlogStoryboard:
         sorted_videos = sorted(
             processed_videos,
             key=lambda x: x.metadata.creation_time or ""
@@ -131,8 +129,6 @@ Lütfen yanıtı son derece detaylı, hazır okunabilir akıcı Türkçe ile ver
 
         loc_str = ", ".join(list(locations_visited)[:5])
         prompt_text = self.build_ai_vlog_prompt(vlog_title, sorted_videos, segments)
-
-        # Generate End-to-End Turkish Vlog Script
         full_script = self.generate_ai_vlog_script(vlog_title, sorted_videos, prompt_text)
 
         return MasterVlogStoryboard(
@@ -176,13 +172,15 @@ Lütfen yanıtı son derece detaylı, hazır okunabilir akıcı Türkçe ile ver
 
     def generate_ffmpeg_script(self, storyboard: MasterVlogStoryboard, videos: List[ProcessedVideoItem], output_script_path: str):
         video_map = {item.video_id: item.metadata.file_path for item in videos}
+        output_dir = os.path.dirname(output_script_path)
+        output_video_path = os.path.join(output_dir, "final_travel_vlog.mp4")
 
         script_content = f"""#!/usr/bin/env python3
-# Otomatik Oluşturulan Travel Vlog FFmpeg / MoviePy Render Betiği
+# Otomatik Oluşturulan Travel Vlog MoviePy Render Betiği
 import os
 import sys
 
-print("🚀 Travel Vlog Otomatik Kurgusu Başlatılıyor...")
+print("🚀 Travel Vlog Otomatik Video Kurgusu ve Birleştirmesi Başlatılıyor...")
 print("Başlık: {storyboard.vlog_title}")
 
 try:
@@ -198,27 +196,30 @@ clips = []
             if fp:
                 script_content += f"""
 if os.path.exists(r"{fp}"):
-    print("🎬 İşleniyor: {os.path.basename(fp)} ({seg.start_time}s - {seg.end_time}s)...")
+    print("🎬 Kurgulanıyor: {os.path.basename(fp)} ({seg.start_time}s - {seg.end_time}s)...")
     try:
         clip = VideoFileClip(r"{fp}").subclip({seg.start_time}, {seg.end_time})
+        # Resize to standard 1920x1080 if needed
+        if clip.w != 1920 or clip.h != 1080:
+            clip = clip.resize(newsize=(1920, 1080))
         clips.append(clip)
     except Exception as e:
-        print(f"⚠️ Klip yüklenirken uyarı: {{e}}")
+        print(f"⚠️ Klip işlenirken uyarı: {{e}}")
 """
 
-        script_content += """
+        script_content += f"""
 if not clips:
-    print("❌ İşlenecek geçerli klip bulunamadı.")
+    print("❌ İşlenecek geçerli video klibi bulunamadı.")
     sys.exit(1)
 
-print(f"✨ Toplam {len(clips)} klip birleştiriliyor...")
+print(f"✨ Toplam {{len(clips)}} klip otomatik birleştiriliyor ve kurgulanıyor...")
 final_clip = concatenate_videoclips(clips, method="compose")
-output_filename = "final_travel_vlog.mp4"
-final_clip.write_videofile(output_filename, codec="libx264", audio_codec="aac")
-print(f"🎉 VLOG KURGUSU TAMAMLANDI! Çıktı dosyası: {output_filename}")
+output_filename = r"{output_video_path}"
+final_clip.write_videofile(output_filename, codec="libx264", audio_codec="aac", fps=24)
+print(f"🎉 NİHAİ VLOG VİDEOSU OLUŞTURULDU! Çıktı: {{output_filename}}")
 """
         with open(output_script_path, "w", encoding="utf-8") as f:
             f.write(script_content)
 
         os.chmod(output_script_path, 0o755)
-        logger.info(f"FFmpeg render script created at {output_script_path}")
+        logger.info(f"Render script generated at {output_script_path}")

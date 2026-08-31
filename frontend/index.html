@@ -40,6 +40,9 @@
                 <button class="nav-btn" data-tab="storyboard-tab">
                     <i class="fa-solid fa-wand-magic-sparkles"></i> Tam Vlog Senaryosu
                 </button>
+                <button class="nav-btn" data-tab="video-render-tab">
+                    <i class="fa-solid fa-circle-play"></i> Nihai Vlog Oynatıcı
+                </button>
                 <button class="nav-btn" data-tab="prompt-tab">
                     <i class="fa-solid fa-code"></i> AI Prompt İhracı
                 </button>
@@ -59,7 +62,7 @@
             <header class="top-header">
                 <div class="header-title">
                     <h1 id="page-title">Otomatik Travel Vlog Senaryo & Video Oluşturucu</h1>
-                    <p id="page-subtitle">Türkçe Konuşma Transkripsiyonu, EXIF Harita Konumu ve Tam Senaryo Motoru</p>
+                    <p id="page-subtitle">Türkçe Konuşma Transkripsiyonu, EXIF Harita Konumu ve Otomatik Kurgu Motoru</p>
                 </div>
                 
                 <div class="header-actions">
@@ -166,7 +169,10 @@
                     <div class="card-header">
                         <i class="fa-solid fa-clapperboard icon-primary"></i>
                         <h3 id="storyboard-title">Uygulama Tarafından Üretilen Tam Vlog Senaryosu</h3>
-                        <button id="copy-script-btn" class="btn btn-secondary btn-sm" style="margin-left: auto;">
+                        <button id="render-video-btn" class="btn btn-primary btn-sm" style="margin-left: auto;">
+                            <i class="fa-solid fa-film"></i> 🎬 Nihai Videoyu Birleştir & Oluştur
+                        </button>
+                        <button id="copy-script-btn" class="btn btn-secondary btn-sm">
                             <i class="fa-regular fa-copy"></i> Senaryoyu Kopyala
                         </button>
                     </div>
@@ -178,7 +184,26 @@
                 </div>
             </section>
 
-            <!-- TAB 4: AI PROMPT EXPORT -->
+            <!-- TAB 4: RENDERED FINAL VIDEO PLAYER -->
+            <section id="video-render-tab" class="tab-content">
+                <div class="glass-card">
+                    <div class="card-header">
+                        <i class="fa-solid fa-circle-play icon-primary"></i>
+                        <h3>Birleştirilen Nihai Travel Vlog Videonuz</h3>
+                        <a id="download-video-link" href="#" download class="btn btn-secondary btn-sm hidden" style="margin-left: auto;">
+                            <i class="fa-solid fa-download"></i> Videoyu İndir (MP4)
+                        </a>
+                    </div>
+                    <p class="card-desc">Tüm videolarınızın en estetik sahneleri otomatik kesilerek tek bir kurgu dosyası haline getirildi:</p>
+
+                    <div id="rendered-video-container" style="text-align: center; padding: 20px;">
+                        <p id="no-render-msg" class="card-desc">Henüz nihai video birleştirilmedi. "Tam Vlog Senaryosu" sekmesindeki <strong>"Nihai Videoyu Birleştir & Oluştur"</strong> butonuna basın.</p>
+                        <video id="final-vlog-player" controls class="hidden" style="max-width: 100%; max-height: 500px; border-radius: 12px; border: 1px solid var(--border-color); box-shadow: var(--shadow-glow);"></video>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 5: AI PROMPT EXPORT -->
             <section id="prompt-tab" class="tab-content">
                 <div class="glass-card">
                     <div class="card-header">
@@ -188,7 +213,7 @@
                             <i class="fa-regular fa-copy"></i> İstem Metnini Kopyala
                         </button>
                     </div>
-                    <p class="card-desc">Dilerseniz bu ham ham veriyi kopyalayıp başka bir AI modeline de iletebilirsiniz.</p>
+                    <p class="card-desc">Dilerseniz bu ham veriyi kopyalayıp başka bir AI modeline de iletebilirsiniz.</p>
 
                     <pre id="prompt-preview" class="code-preview">Henüz işlenmiş video verisi yok.</pre>
                 </div>

@@ -1,4 +1,5 @@
 import os
+import subprocess
 import asyncio
 import logging
 from typing import List, Optional
@@ -90,7 +91,7 @@ async def process_folder(req: ProcessFolderRequest, background_tasks: Background
                     "current": len(PROCESSED_ITEMS),
                     "total": len(PROCESSED_ITEMS),
                     "overall_progress": 100.0,
-                    "status_message": "Tüm videolar başarıyla işlendi ve Vlog Senaryosu oluşturuldu!"
+                    "status_message": "Tüm videolar ve Vlog Senaryosu başarıyla oluşturuldu!"
                 }),
                 asyncio.get_event_loop()
             )
@@ -117,7 +118,6 @@ async def upload_video(file: UploadFile = File(...), gemini_api_key: Optional[st
     item = PROCESSOR.process_single_video(file_path)
     PROCESSED_ITEMS.append(item)
 
-    # Update storyboard
     storyboard = PROCESSOR.vlog_generator.generate_storyboard(PROCESSED_ITEMS)
 
     return {
@@ -126,6 +126,54 @@ async def upload_video(file: UploadFile = File(...), gemini_api_key: Optional[st
         "storyboard": storyboard.model_dump()
     }
 
+@app.post("/api/render_video")
+async def render_video(background_tasks: BackgroundTasks):
+    """Triggers automated video concatenation and rendering of final_travel_vlog.mp4."""
+    script_path = os.path.join(CURRENT_OUTPUT_DIR, "render_vlog.py")
+    output_video = os.path.join(CURRENT_OUTPUT_DIR, "final_travel_vlog.mp4")
+
+    if not os.path.exists(script_path):
+        raise HTTPException(status_code=400, detail="Önce videoları işleyin ve senaryoyu oluşturun.")
+
+    def run_render():
+        try:
+            asyncio.run_coroutine_threadsafe(
+                PROGRESS_QUEUE.put({
+                    "filename": "RENDER",
+                    "current": 1,
+                    "total": 1,
+                    "overall_progress": 50.0,
+                    "status_message": "🎬 Nihai Travel Vlog kurgulanıyor ve birleştiriliyor..."
+                }),
+                asyncio.get_event_loop()
+            )
+
+            # Execute render_vlog.py using virtual environment python
+            py_bin = os.path.abspath("./venv/bin/python3")
+            if not os.path.exists(py_bin):
+                py_bin = "python3"
+
+            res = subprocess.run([py_bin, script_path], capture_output=True, text=True)
+            logger.info(f"Render stdout: {res.stdout}")
+            if res.returncode != 0:
+                logger.error(f"Render stderr: {res.stderr}")
+
+            asyncio.run_coroutine_threadsafe(
+                PROGRESS_QUEUE.put({
+                    "filename": "RENDER",
+                    "current": 1,
+                    "total": 1,
+                    "overall_progress": 100.0,
+                    "status_message": "🎉 Nihai Travel Vlog videosu başarıyla oluşturuldu!"
+                }),
+                asyncio.get_event_loop()
+            )
+        except Exception as e:
+            logger.error(f"Render process failed: {e}")
+
+    background_tasks.add_task(run_render)
+    return {"message": "Video rendering başlatıldı", "output_video": "/media/final_travel_vlog.mp4"}
+
 @app.get("/api/results")
 async def get_results():
     global PROCESSED_ITEMS, PROCESSOR
@@ -133,21 +181,17 @@ async def get_results():
         PROCESSOR = VideoPipelineProcessor()
 
     storyboard = PROCESSOR.vlog_generator.generate_storyboard(PROCESSED_ITEMS)
+    video_exists = os.path.exists(os.path.join(CURRENT_OUTPUT_DIR, "final_travel_vlog.mp4"))
+
     return {
         "total": len(PROCESSED_ITEMS),
         "videos": [item.model_dump() for item in PROCESSED_ITEMS],
-        "storyboard": storyboard.model_dump()
+        "storyboard": storyboard.model_dump(),
+        "rendered_video_url": "/media/final_travel_vlog.mp4" if video_exists else None
     }
 
-@app.get("/api/export_prompt")
-async def export_prompt():
-    global PROCESSED_ITEMS, PROCESSOR
-    if not PROCESSOR:
-        PROCESSOR = VideoPipelineProcessor()
-    storyboard = PROCESSOR.vlog_generator.generate_storyboard(PROCESSED_ITEMS)
-    return JSONResponse({"prompt": storyboard.chat_ai_prompt})
-
-# Static Files & Frontend Routing
+# Static Mounts
+app.mount("/media", StaticFiles(directory=CURRENT_OUTPUT_DIR), name="media")
 frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../frontend"))
 app.mount("/static", StaticFiles(directory=frontend_dir), name="static")
 

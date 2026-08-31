@@ -18,10 +18,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const statTotalVideos = document.getElementById('stat-total-videos');
     const statSpeechVideos = document.getElementById('stat-speech-videos');
     const fullScriptPreview = document.getElementById('full-script-preview');
+    const renderVideoBtn = document.getElementById('render-video-btn');
     const copyScriptBtn = document.getElementById('copy-script-btn');
     const promptPreview = document.getElementById('prompt-preview');
     const copyPromptBtn = document.getElementById('copy-prompt-btn');
     const catalogSearch = document.getElementById('catalog-search');
+
+    const finalVlogPlayer = document.getElementById('final-vlog-player');
+    const noRenderMsg = document.getElementById('no-render-msg');
+    const downloadVideoLink = document.getElementById('download-video-link');
 
     navButtons.forEach(btn => {
         btn.addEventListener('click', () => {
@@ -32,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.classList.add('active');
             document.getElementById(targetTab).classList.add('active');
 
-            if (targetTab === 'catalog-tab' || targetTab === 'storyboard-tab' || targetTab === 'prompt-tab') {
+            if (targetTab === 'catalog-tab' || targetTab === 'storyboard-tab' || targetTab === 'video-render-tab' || targetTab === 'prompt-tab') {
                 fetchResults();
             }
         });
@@ -91,6 +96,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Render Video Button click handler
+    renderVideoBtn.addEventListener('click', async () => {
+        progressCard.classList.remove('hidden');
+        progressFilename.textContent = 'Videolar Birleştiriliyor (MoviePy Render)';
+        progressStatusText.textContent = '🎬 Kurgu başlatılıyor...';
+        progressBarFill.style.width = '30%';
+
+        try {
+            const res = await fetch('/api/render_video', { method: 'POST' });
+            if (res.ok) {
+                alert('Video birleştirme başlatıldı! Canlı durum çubuğunu takip edebilirsiniz.');
+            } else {
+                const data = await res.json();
+                alert(data.detail || 'Video birleştirme başlatılamadı.');
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Video rendering başlatılırken hata oluştu.');
+        }
+    });
+
     const dropZone = document.getElementById('drop-zone');
     const fileInput = document.getElementById('file-input');
 
@@ -143,6 +169,15 @@ document.addEventListener('DOMContentLoaded', () => {
             renderCatalog(currentVideos);
             renderScript(currentStoryboard);
             renderPrompt(currentStoryboard ? currentStoryboard.chat_ai_prompt : '');
+
+            // Rendered Video Player check
+            if (data.rendered_video_url) {
+                finalVlogPlayer.src = data.rendered_video_url;
+                finalVlogPlayer.classList.remove('hidden');
+                noRenderMsg.classList.add('hidden');
+                downloadVideoLink.href = data.rendered_video_url;
+                downloadVideoLink.classList.remove('hidden');
+            }
         } catch (err) {
             console.error('Sonuçlar alınamadı:', err);
         }
