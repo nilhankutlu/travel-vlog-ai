@@ -8,6 +8,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const startFolderBtn = document.getElementById('start-folder-btn');
     const whisperModelSelect = document.getElementById('whisper-model-select');
     const shortModeSelect = document.getElementById('short-mode-select');
+    const shortModeGroup = document.getElementById('short-mode-group');
+    const renderFormatSelect = document.getElementById('render-format-select');
     const progressCard = document.getElementById('progress-card');
     const progressBarFill = document.getElementById('progress-bar-fill');
     const progressStatusText = document.getElementById('progress-status-text');
@@ -19,7 +21,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const statSpeechVideos = document.getElementById('stat-speech-videos');
     const fullScriptPreview = document.getElementById('full-script-preview');
     const renderVideoBtn = document.getElementById('render-video-btn');
-    const renderFormatSelect = document.getElementById('render-format-select');
     const promptPreview = document.getElementById('prompt-preview');
     const copyPromptBtn = document.getElementById('copy-prompt-btn');
     const catalogSearch = document.getElementById('catalog-search');
@@ -46,6 +47,19 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     });
+
+    if (renderFormatSelect) {
+        renderFormatSelect.addEventListener('change', () => {
+            const fmt = renderFormatSelect.value;
+            if (fmt === 'long') {
+                shortModeSelect.disabled = true;
+                if (shortModeGroup) shortModeGroup.style.opacity = '0.4';
+            } else {
+                shortModeSelect.disabled = false;
+                if (shortModeGroup) shortModeGroup.style.opacity = '1.0';
+            }
+        });
+    }
 
     if (shortModeSelect) {
         shortModeSelect.addEventListener('change', () => {

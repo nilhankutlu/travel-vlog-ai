@@ -59,7 +59,7 @@
             <header class="top-header">
                 <div class="header-title">
                     <h1 id="page-title">Otomatik Long (Yatay 16:9) & Short (Dik 9:16) Vlog Maker</h1>
-                    <p id="page-subtitle">Türkçe Konuşma Transkripsiyonu, EXIF Harita Konumu ve Stratejik Kurgu Motoru</p>
+                    <p id="page-subtitle">Türkçe Konuşma Transkripsiyonu, EXIF Harita Konumu ve Akıllı Kurgu Motoru</p>
                 </div>
                 
                 <div class="header-actions">
@@ -162,22 +162,22 @@
                 <div class="glass-card" style="margin-bottom: 20px;">
                     <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: center;">
                         <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-weight: 600; font-size: 14px;">Kurgu Formatı:</span>
+                            <select id="render-format-select" style="padding: 8px 12px;">
+                                <option value="both" selected>🌟 Her İkisini De Oluştur (Long + Short)</option>
+                                <option value="long">🎬 Sadece Long-Form (Yatay 16:9 YouTube)</option>
+                                <option value="short">📱 Sadece Short-Form (Dik 9:16 Reels/TikTok)</option>
+                            </select>
+                        </div>
+
+                        <div id="short-mode-group" style="display: flex; align-items: center; gap: 8px; transition: opacity 0.3s;">
                             <i class="fa-solid fa-sliders icon-primary"></i>
-                            <span style="font-weight: 600; font-size: 14px;">Shorts/Reels Modu:</span>
+                            <span style="font-weight: 600; font-size: 13px;">Shorts/Reels Modu:</span>
                             <select id="short-mode-select" style="padding: 8px 12px;">
                                 <option value="1" selected>MOD 1: Ham Video Bankası (3 Viral Fikir)</option>
                                 <option value="2">MOD 2: Mekan İçerikleri (Estetik & Bilgiler)</option>
                                 <option value="3">MOD 3: Bir Günümüz (Day-In-The-Life)</option>
                                 <option value="4">MOD 4: Travel Trick / Hack (Pratik Hileler)</option>
-                            </select>
-                        </div>
-
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <span style="font-weight: 600; font-size: 14px;">Format:</span>
-                            <select id="render-format-select" style="padding: 8px 12px;">
-                                <option value="both" selected>🌟 Her İkisini De Oluştur (Long + Short)</option>
-                                <option value="long">🎬 Sadece Long-Form (Yatay 16:9)</option>
-                                <option value="short">📱 Sadece Short-Form (Dik 9:16)</option>
                             </select>
                         </div>
 
