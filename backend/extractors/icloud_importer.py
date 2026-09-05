@@ -155,27 +155,45 @@ class ICloudSharedAlbumImporter:
             raise e
 
     def fetch_download_urls(self, token: str, host: str, photo_guids: List[str]) -> dict:
-        """Fetches download URLs for derivatives via webget endpoint."""
+        """Fetches download URLs for derivatives via webget endpoint with small batch size and fallback."""
         url = f"https://{host}/{token}/sharedstreams/webget"
         headers = {
             "Content-Type": "application/json",
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
         }
+        
+        valid_guids = [str(g).strip() for g in photo_guids if g and isinstance(g, (str, int))]
         items = {}
-        for i in range(0, len(photo_guids), 100):
-            chunk = photo_guids[i:i+100]
+        batch_size = 20
+        
+        for i in range(0, len(valid_guids), batch_size):
+            chunk = valid_guids[i:i+batch_size]
             try:
                 with _http_post_json_with_retry(url, {"photoGuids": chunk}, headers, timeout=60) as resp:
                     res_data = json.loads(resp.read().decode("utf-8"))
-                    items.update(res_data.get("items", {}))
+                    res_items = res_data.get("items", {})
+                    if isinstance(res_items, dict):
+                        items.update(res_items)
             except urllib.error.HTTPError as e:
                 redirect_host = _extract_redirect_host(e)
                 if redirect_host and redirect_host != host:
                     logger.info(f"HTTP 330 Webget Redirecting to {redirect_host}")
-                    return self.fetch_download_urls(token, redirect_host, photo_guids)
-                logger.error(f"Error fetching webget chunk: {e}")
+                    return self.fetch_download_urls(token, redirect_host, valid_guids)
+                
+                # If HTTP 400 or other status error, fallback to requesting single items for this chunk
+                logger.warning(f"Webget batch failed (HTTP {e.code}). Retrying chunk items individually...")
+                for single_guid in chunk:
+                    try:
+                        with _http_post_json_with_retry(url, {"photoGuids": [single_guid]}, headers, timeout=30, max_retries=1) as s_resp:
+                            s_data = json.loads(s_resp.read().decode("utf-8"))
+                            s_items = s_data.get("items", {})
+                            if isinstance(s_items, dict):
+                                items.update(s_items)
+                    except Exception as sub_e:
+                        logger.error(f"Failed webget for photoGuid {single_guid}: {sub_e}")
             except Exception as e:
                 logger.error(f"Error fetching webget chunk: {e}")
+                
         return items
 
     def download_album_from_url(
@@ -201,7 +219,7 @@ class ICloudSharedAlbumImporter:
         if progress_cb:
             progress_cb("Medya Bağlantıları Alınıyor...", 0, total_photos, 0.15, f"{total_photos} medya nesnesi tespit edildi. İndirme adresleri hazırlanıyor...")
 
-        photo_guids = [p["photoGuid"] for p in photos if "photoGuid" in p]
+        photo_guids = [p["photoGuid"] for p in photos if isinstance(p, dict) and p.get("photoGuid")]
         items_dict = self.fetch_download_urls(token, final_host, photo_guids)
 
         downloaded_count = 0
@@ -217,15 +235,17 @@ class ICloudSharedAlbumImporter:
 
             for key, deriv in derivatives.items():
                 checksum = deriv.get("checksum")
-                if not checksum or checksum not in items_dict:
+                item_loc = items_dict.get(checksum) or (items_dict.get(guid) if guid else None)
+                if not item_loc:
                     continue
                 
                 file_size = deriv.get("fileSize", 0)
                 if "video" in key.lower() or key in ["MOV", "MP4", "1080pVideo", "720pVideo"]:
-                    video_derivative = (key, deriv, items_dict[checksum])
+                    video_derivative = (key, deriv, item_loc)
                 else:
                     if not image_derivative or file_size > image_derivative[1].get("fileSize", 0):
-                        image_derivative = (key, deriv, items_dict[checksum])
+                        image_derivative = (key, deriv, item_loc)
+
 
             target_derivative = video_derivative or image_derivative
             if not target_derivative:
