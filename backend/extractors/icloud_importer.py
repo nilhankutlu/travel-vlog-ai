@@ -33,6 +33,9 @@ class ICloudSharedAlbumImporter:
             token = token.split("?")[0]
         return token
 
+import time
+import socket
+
 def _extract_redirect_host(e: urllib.error.HTTPError) -> Optional[str]:
     """Extracts the target host from an Apple iCloud HTTP 330 Moved Location response."""
     if e.code in (330, 301, 302, 307, 308):
@@ -55,6 +58,24 @@ def _extract_redirect_host(e: urllib.error.HTTPError) -> Optional[str]:
         except Exception:
             pass
     return None
+
+def _http_post_json_with_retry(url: str, body_dict: dict, headers: dict, timeout: int = 60, max_retries: int = 3):
+    """Executes a JSON POST request with robust retry and timeout handling."""
+    body_bytes = json.dumps(body_dict).encode("utf-8")
+    last_err = None
+    for attempt in range(1, max_retries + 1):
+        req = urllib.request.Request(url, data=body_bytes, headers=headers, method="POST")
+        try:
+            return urllib.request.urlopen(req, timeout=timeout)
+        except urllib.error.HTTPError as e:
+            raise e
+        except (urllib.error.URLError, socket.timeout, Exception) as e:
+            last_err = e
+            logger.warning(f"iCloud API isteğinde zaman aşımı/hata (Deneme {attempt}/{max_retries}): {e}")
+            if attempt < max_retries:
+                time.sleep(1.5 * attempt)
+    if last_err:
+        raise last_err
 
 class ICloudSharedAlbumImporter:
     def __init__(self, output_base_dir: str = "./output/icloud_albums"):
@@ -83,11 +104,9 @@ class ICloudSharedAlbumImporter:
         }
         initial_host = "p102-sharedstreams.icloud.com"
         url = f"https://{initial_host}/{token}/sharedstreams/webstream"
-        body = json.dumps({"streamCsn": "0"}).encode("utf-8")
-        req = urllib.request.Request(url, data=body, headers=headers, method="POST")
         
         try:
-            with urllib.request.urlopen(req, timeout=8) as resp:
+            with _http_post_json_with_retry(url, {"streamCsn": "0"}, headers, timeout=20) as resp:
                 if resp.status == 200:
                     return initial_host
         except urllib.error.HTTPError as e:
@@ -99,11 +118,10 @@ class ICloudSharedAlbumImporter:
             pass
 
         candidate_hosts = [f"p{i:02d}-sharedstreams.icloud.com" for i in range(1, 120)]
-        for host in candidate_hosts[:25]:
+        for host in candidate_hosts[:20]:
             url = f"https://{host}/{token}/sharedstreams/webstream"
-            req = urllib.request.Request(url, data=body, headers=headers, method="POST")
             try:
-                with urllib.request.urlopen(req, timeout=4) as resp:
+                with _http_post_json_with_retry(url, {"streamCsn": "0"}, headers, timeout=10, max_retries=1) as resp:
                     if resp.status == 200:
                         logger.info(f"Discovered active iCloud host: {host}")
                         return host
@@ -123,11 +141,9 @@ class ICloudSharedAlbumImporter:
             "Content-Type": "application/json",
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
         }
-        body = json.dumps({"streamCsn": "0"}).encode("utf-8")
-        req = urllib.request.Request(url, data=body, headers=headers, method="POST")
         
         try:
-            with urllib.request.urlopen(req, timeout=15) as resp:
+            with _http_post_json_with_retry(url, {"streamCsn": "0"}, headers, timeout=60) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
                 photos = data.get("photos", [])
                 return data, photos, host
@@ -148,10 +164,8 @@ class ICloudSharedAlbumImporter:
         items = {}
         for i in range(0, len(photo_guids), 100):
             chunk = photo_guids[i:i+100]
-            body = json.dumps({"photoGuids": chunk}).encode("utf-8")
-            req = urllib.request.Request(url, data=body, headers=headers, method="POST")
             try:
-                with urllib.request.urlopen(req, timeout=20) as resp:
+                with _http_post_json_with_retry(url, {"photoGuids": chunk}, headers, timeout=60) as resp:
                     res_data = json.loads(resp.read().decode("utf-8"))
                     items.update(res_data.get("items", {}))
             except urllib.error.HTTPError as e:
@@ -163,7 +177,6 @@ class ICloudSharedAlbumImporter:
             except Exception as e:
                 logger.error(f"Error fetching webget chunk: {e}")
         return items
-
 
     def download_album_from_url(
         self,
@@ -191,7 +204,6 @@ class ICloudSharedAlbumImporter:
         photo_guids = [p["photoGuid"] for p in photos if "photoGuid" in p]
         items_dict = self.fetch_download_urls(token, final_host, photo_guids)
 
-
         downloaded_count = 0
         for idx, photo in enumerate(photos, 1):
             guid = photo.get("photoGuid")
@@ -208,12 +220,10 @@ class ICloudSharedAlbumImporter:
                 if not checksum or checksum not in items_dict:
                     continue
                 
-                # Check if it's a video file / Live Photo video track
                 file_size = deriv.get("fileSize", 0)
                 if "video" in key.lower() or key in ["MOV", "MP4", "1080pVideo", "720pVideo"]:
                     video_derivative = (key, deriv, items_dict[checksum])
                 else:
-                    # Choose largest image derivative
                     if not image_derivative or file_size > image_derivative[1].get("fileSize", 0):
                         image_derivative = (key, deriv, items_dict[checksum])
 
@@ -228,32 +238,38 @@ class ICloudSharedAlbumImporter:
                 continue
 
             download_url = f"https://{url_loc}{url_path}"
-
-            # File naming
             ext = ".mov" if video_derivative else ".jpg"
             filename = f"media_{idx:03d}_{guid[:8]}{ext}"
             file_path = os.path.join(album_dir, filename)
 
             if not os.path.exists(file_path):
-                try:
-                    req = urllib.request.Request(download_url, headers={"User-Agent": "Mozilla/5.0"})
-                    with urllib.request.urlopen(req, timeout=30) as resp, open(file_path, "wb") as f:
-                        f.write(resp.read())
-                    downloaded_count += 1
-                except Exception as e:
-                    logger.error(f"Media indirme hatası ({filename}): {e}")
+                for download_attempt in range(1, 4):
+                    try:
+                        req = urllib.request.Request(download_url, headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"})
+                        with urllib.request.urlopen(req, timeout=120) as resp, open(file_path, "wb") as f:
+                            while True:
+                                chunk = resp.read(65536)
+                                if not chunk:
+                                    break
+                                f.write(chunk)
+                        downloaded_count += 1
+                        break
+                    except Exception as e:
+                        logger.warning(f"Media indirme denemesi {download_attempt}/3 başarısız ({filename}): {e}")
+                        if download_attempt < 3:
+                            time.sleep(2.0)
 
             ratio = 0.15 + 0.7 * (idx / max(total_photos, 1))
             if progress_cb:
-                progress_cb(filename, idx, total_photos, ratio, f"İndiriliyor: {filename} (Live Photo / Video / Görsel)")
+                progress_cb(filename, idx, total_photos, ratio, f"İndiriliyor ({idx}/{total_photos}): {filename}")
 
-        # Prepare static images into motion video clips so all photos are usable
         self.prepare_album_folder(album_dir)
 
         if progress_cb:
             progress_cb("iCloud Albüm İndirme Tamamlandı", total_photos, total_photos, 1.0, "Tüm videolar ve Live Fotolar başarıyla indirildi ve hazırlandı!")
 
         return album_dir
+
 
     def prepare_album_folder(self, folder_path: str) -> List[str]:
         """
