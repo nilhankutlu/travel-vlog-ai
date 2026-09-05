@@ -99,8 +99,9 @@ class ICloudSharedAlbumImporter:
     def _discover_host(self, token: str) -> str:
         """Finds the correct partition host for the iCloud shared stream."""
         headers = {
-            "Content-Type": "application/json",
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+            "Content-Type": "text/plain",
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Origin": "https://www.icloud.com"
         }
         initial_host = "p102-sharedstreams.icloud.com"
         url = f"https://{initial_host}/{token}/sharedstreams/webstream"
@@ -138,8 +139,9 @@ class ICloudSharedAlbumImporter:
         """Fetches photos metadata and photo records, resolving 330 redirects."""
         url = f"https://{host}/{token}/sharedstreams/webstream"
         headers = {
-            "Content-Type": "application/json",
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+            "Content-Type": "text/plain",
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Origin": "https://www.icloud.com"
         }
         
         try:
@@ -158,8 +160,9 @@ class ICloudSharedAlbumImporter:
         """Fetches download URLs for derivatives via webget endpoint with small batch size and fallback."""
         url = f"https://{host}/{token}/sharedstreams/webget"
         headers = {
-            "Content-Type": "application/json",
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+            "Content-Type": "text/plain",
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Origin": "https://www.icloud.com"
         }
         
         valid_guids = [str(g).strip() for g in photo_guids if g and isinstance(g, (str, int))]
@@ -219,8 +222,16 @@ class ICloudSharedAlbumImporter:
         if progress_cb:
             progress_cb("Medya Bağlantıları Alınıyor...", 0, total_photos, 0.15, f"{total_photos} medya nesnesi tespit edildi. İndirme adresleri hazırlanıyor...")
 
-        photo_guids = [p["photoGuid"] for p in photos if isinstance(p, dict) and p.get("photoGuid")]
-        items_dict = self.fetch_download_urls(token, final_host, photo_guids)
+        # 1. Try embedded items directly from webstream metadata
+        items_dict = metadata.get("items", {}) if isinstance(metadata.get("items"), dict) else {}
+
+        # 2. If embedded items missing or incomplete, fetch via webget
+        if not items_dict:
+            photo_guids = [p["photoGuid"] for p in photos if isinstance(p, dict) and p.get("photoGuid")]
+            items_dict = self.fetch_download_urls(token, final_host, photo_guids)
+        else:
+            logger.info(f"Retrieved {len(items_dict)} media item URLs directly from webstream metadata.")
+
 
         downloaded_count = 0
         for idx, photo in enumerate(photos, 1):
