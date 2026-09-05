@@ -21,6 +21,7 @@ PROCESSOR: Optional[VideoPipelineProcessor] = None
 PROGRESS_QUEUE = asyncio.Queue()
 PROCESSED_ITEMS: List[ProcessedVideoItem] = []
 CURRENT_OUTPUT_DIR = os.path.abspath("./output")
+MAIN_LOOP: Optional[asyncio.AbstractEventLoop] = None
 
 os.makedirs(CURRENT_OUTPUT_DIR, exist_ok=True)
 
@@ -38,7 +39,8 @@ class ProcessICloudRequest(BaseModel):
 
 @app.on_event("startup")
 async def startup_event():
-    global PROCESSOR
+    global PROCESSOR, MAIN_LOOP
+    MAIN_LOOP = asyncio.get_running_loop()
     PROCESSOR = VideoPipelineProcessor()
 
 @app.get("/api/status_stream")
@@ -59,17 +61,25 @@ async def status_stream():
 
     return EventSourceResponse(event_generator())
 
+def send_progress(data: dict):
+    global MAIN_LOOP
+    if MAIN_LOOP and MAIN_LOOP.is_running():
+        MAIN_LOOP.call_soon_threadsafe(PROGRESS_QUEUE.put_nowait, data)
+    else:
+        try:
+            loop = asyncio.get_running_loop()
+            loop.call_soon_threadsafe(PROGRESS_QUEUE.put_nowait, data)
+        except Exception:
+            pass
+
 def progress_callback(filename: str, current: int, total: int, overall_ratio: float, status_msg: str):
-    asyncio.run_coroutine_threadsafe(
-        PROGRESS_QUEUE.put({
-            "filename": filename,
-            "current": current,
-            "total": total,
-            "overall_progress": round(overall_ratio * 100, 1),
-            "status_message": status_msg
-        }),
-        asyncio.get_event_loop()
-    )
+    send_progress({
+        "filename": filename,
+        "current": current,
+        "total": total,
+        "overall_progress": round(overall_ratio * 100, 1),
+        "status_message": status_msg
+    })
 
 @app.post("/api/process_folder")
 async def process_folder(req: ProcessFolderRequest, background_tasks: BackgroundTasks):
@@ -102,16 +112,13 @@ async def process_folder(req: ProcessFolderRequest, background_tasks: Background
                 output_dir=CURRENT_OUTPUT_DIR,
                 progress_cb=progress_callback
             )
-            asyncio.run_coroutine_threadsafe(
-                PROGRESS_QUEUE.put({
-                    "filename": "ALL",
-                    "current": len(PROCESSED_ITEMS),
-                    "total": len(PROCESSED_ITEMS),
-                    "overall_progress": 100.0,
-                    "status_message": "Tüm videolar, Live Fotolar ve görseller başarıyla taranıp oluşturuldu!"
-                }),
-                asyncio.get_event_loop()
-            )
+            send_progress({
+                "filename": "ALL",
+                "current": len(PROCESSED_ITEMS),
+                "total": len(PROCESSED_ITEMS),
+                "overall_progress": 100.0,
+                "status_message": "Tüm videolar, Live Fotolar ve görseller başarıyla taranıp oluşturuldu!"
+            })
         except Exception as e:
             logger.error(f"Batch processing error: {e}")
 
@@ -134,16 +141,13 @@ async def process_icloud_album(req: ProcessICloudRequest, background_tasks: Back
                 output_dir=CURRENT_OUTPUT_DIR,
                 progress_cb=progress_callback
             )
-            asyncio.run_coroutine_threadsafe(
-                PROGRESS_QUEUE.put({
-                    "filename": "ALL_ICLOUD",
-                    "current": len(PROCESSED_ITEMS),
-                    "total": len(PROCESSED_ITEMS),
-                    "overall_progress": 100.0,
-                    "status_message": "🎉 Tüm iCloud Paylaşılan Albüm videoları, Live Fotoları ve fotoğrafları başarıyla işlendi!"
-                }),
-                asyncio.get_event_loop()
-            )
+            send_progress({
+                "filename": "ALL_ICLOUD",
+                "current": len(PROCESSED_ITEMS),
+                "total": len(PROCESSED_ITEMS),
+                "overall_progress": 100.0,
+                "status_message": "🎉 Tüm iCloud Paylaşılan Albüm videoları, Live Fotoları ve fotoğrafları başarıyla işlendi!"
+            })
         except Exception as e:
             logger.error(f"iCloud processing error: {e}")
 
@@ -194,34 +198,29 @@ async def render_video(req: RenderVideoRequest, background_tasks: BackgroundTask
 
             for script_p, label in scripts_to_run:
                 if os.path.exists(script_p):
-                    asyncio.run_coroutine_threadsafe(
-                        PROGRESS_QUEUE.put({
-                            "filename": label,
-                            "current": 1,
-                            "total": 1,
-                            "overall_progress": 50.0,
-                            "status_message": f"{label} kurgulanıyor ve oluşturuluyor..."
-                        }),
-                        asyncio.get_event_loop()
-                    )
+                    send_progress({
+                        "filename": label,
+                        "current": 1,
+                        "total": 1,
+                        "overall_progress": 50.0,
+                        "status_message": f"{label} kurgulanıyor ve oluşturuluyor..."
+                    })
                     res = subprocess.run([py_bin, script_p], capture_output=True, text=True)
                     logger.info(f"{label} stdout: {res.stdout}")
 
-            asyncio.run_coroutine_threadsafe(
-                PROGRESS_QUEUE.put({
-                    "filename": "ALL_RENDER",
-                    "current": 1,
-                    "total": 1,
-                    "overall_progress": 100.0,
-                    "status_message": "🎉 Tüm seçilen video formatları (Long / Short) başarıyla oluşturuldu!"
-                }),
-                asyncio.get_event_loop()
-            )
+            send_progress({
+                "filename": "ALL_RENDER",
+                "current": 1,
+                "total": 1,
+                "overall_progress": 100.0,
+                "status_message": "🎉 Tüm seçilen video formatları (Long / Short) başarıyla oluşturuldu!"
+            })
         except Exception as e:
             logger.error(f"Render failure: {e}")
 
     background_tasks.add_task(run_render)
     return {"message": f"{req.video_format} video kurgusu başlatıldı"}
+
 
 @app.get("/api/results")
 async def get_results(short_mode: int = 1):
