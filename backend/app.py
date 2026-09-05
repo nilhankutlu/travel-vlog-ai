@@ -30,6 +30,12 @@ class ProcessFolderRequest(BaseModel):
     whisper_model: str = "base"
     short_mode: int = 1
 
+class ProcessICloudRequest(BaseModel):
+    icloud_url: str
+    gemini_api_key: Optional[str] = None
+    whisper_model: str = "base"
+    short_mode: int = 1
+
 @app.on_event("startup")
 async def startup_event():
     global PROCESSOR
@@ -68,6 +74,18 @@ def progress_callback(filename: str, current: int, total: int, overall_ratio: fl
 @app.post("/api/process_folder")
 async def process_folder(req: ProcessFolderRequest, background_tasks: BackgroundTasks):
     global PROCESSOR, PROCESSED_ITEMS
+    # Auto-detect if user entered an iCloud URL in the folder path box
+    if "icloud.com/sharedalbum" in req.folder_path or req.folder_path.strip().startswith("http"):
+        return await process_icloud_album(
+            ProcessICloudRequest(
+                icloud_url=req.folder_path,
+                gemini_api_key=req.gemini_api_key,
+                whisper_model=req.whisper_model,
+                short_mode=req.short_mode
+            ),
+            background_tasks
+        )
+
     if not os.path.exists(req.folder_path):
         raise HTTPException(status_code=404, detail=f"Dizin bulunamadı: {req.folder_path}")
 
@@ -90,7 +108,7 @@ async def process_folder(req: ProcessFolderRequest, background_tasks: Background
                     "current": len(PROCESSED_ITEMS),
                     "total": len(PROCESSED_ITEMS),
                     "overall_progress": 100.0,
-                    "status_message": "Tüm videolar ve seçilen Shorts/Reels Modu senaryoları başarıyla oluşturuldu!"
+                    "status_message": "Tüm videolar, Live Fotolar ve görseller başarıyla taranıp oluşturuldu!"
                 }),
                 asyncio.get_event_loop()
             )
@@ -99,6 +117,39 @@ async def process_folder(req: ProcessFolderRequest, background_tasks: Background
 
     background_tasks.add_task(run_batch)
     return {"message": "Batch video işleme başlatıldı", "folder": req.folder_path}
+
+@app.post("/api/process_icloud_album")
+async def process_icloud_album(req: ProcessICloudRequest, background_tasks: BackgroundTasks):
+    global PROCESSOR, PROCESSED_ITEMS
+    PROCESSOR = VideoPipelineProcessor(
+        whisper_model=req.whisper_model,
+        gemini_api_key=req.gemini_api_key
+    )
+
+    def run_icloud_batch():
+        global PROCESSED_ITEMS
+        try:
+            PROCESSED_ITEMS = PROCESSOR.process_icloud_album(
+                url_or_token=req.icloud_url,
+                output_dir=CURRENT_OUTPUT_DIR,
+                progress_cb=progress_callback
+            )
+            asyncio.run_coroutine_threadsafe(
+                PROGRESS_QUEUE.put({
+                    "filename": "ALL_ICLOUD",
+                    "current": len(PROCESSED_ITEMS),
+                    "total": len(PROCESSED_ITEMS),
+                    "overall_progress": 100.0,
+                    "status_message": "🎉 Tüm iCloud Paylaşılan Albüm videoları, Live Fotoları ve fotoğrafları başarıyla işlendi!"
+                }),
+                asyncio.get_event_loop()
+            )
+        except Exception as e:
+            logger.error(f"iCloud processing error: {e}")
+
+    background_tasks.add_task(run_icloud_batch)
+    return {"message": "iCloud albüm işleme başlatıldı", "icloud_url": req.icloud_url}
+
 
 @app.post("/api/upload_video")
 async def upload_video(file: UploadFile = File(...), gemini_api_key: Optional[str] = Form(None), short_mode: int = Form(1)):

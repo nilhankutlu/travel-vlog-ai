@@ -145,6 +145,24 @@ class MetadataExtractor:
         else:
             location = GPSLocation(place_name="Bilinmeyen Konum (GPS Yok)")
 
+        # Check Live Photo vs Photo Clip vs Regular Video
+        is_photo_clip = file_name.endswith("_converted.mp4")
+        is_live_photo = False
+
+        if not is_photo_clip:
+            ext_lower = os.path.splitext(file_name)[1].lower()
+            if ext_lower == ".mov" and duration_seconds <= 3.5:
+                is_live_photo = True
+            elif "live" in file_name.lower():
+                is_live_photo = True
+
+        if is_photo_clip:
+            media_type = "photo"
+        elif is_live_photo:
+            media_type = "live_photo"
+        else:
+            media_type = "video"
+
         return VideoMetadata(
             file_name=file_name,
             file_path=os.path.abspath(file_path),
@@ -154,5 +172,8 @@ class MetadataExtractor:
             width=width,
             height=height,
             creation_time=creation_time,
-            location=location
+            location=location,
+            is_live_photo=is_live_photo,
+            is_photo_clip=is_photo_clip,
+            media_type=media_type
         )

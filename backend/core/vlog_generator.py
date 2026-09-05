@@ -277,37 +277,74 @@ SEÇİLEN SHORT-FORM MODU:
         long_script_path = os.path.join(output_dir, "render_long_vlog.py")
         long_output_path = os.path.join(output_dir, "final_travel_vlog_long.mp4")
 
-        long_content = f"""#!/usr/bin/env python3
-import os
-import sys
-
-print("🚀 Long-Form (Yatay 16:9 1920x1080) Travel Vlog Kurgusu Başlatılıyor...")
-try:
-    from moviepy.editor import VideoFileClip, concatenate_videoclips
-except ImportError:
-    print("❌ HATA: 'moviepy' kütüphanesi bulunamadı.")
-    sys.exit(1)
-
-clips = []
-"""
+        long_segments_repr = []
         for seg in storyboard.storyline:
             fp = video_map.get(seg.video_id)
             if fp:
-                long_content += f"""
-if os.path.exists(r"{fp}"):
-    try:
-        clip = VideoFileClip(r"{fp}").subclip({seg.start_time}, {seg.end_time})
-        if clip.w != 1920 or clip.h != 1080:
-            clip = clip.resize(newsize=(1920, 1080))
-        clips.append(clip)
-    except Exception as e:
-        print(f"⚠️ Uyarı: {{e}}")
-"""
-        long_content += f"""
-if clips:
-    final_clip = concatenate_videoclips(clips, method="compose")
-    final_clip.write_videofile(r"{long_output_path}", codec="libx264", audio_codec="aac", fps=24)
-    print("🎉 Yatay 16:9 Long Vlog Tamamlandı: {long_output_path}")
+                long_segments_repr.append((fp, seg.start_time, seg.end_time))
+
+        long_content = f"""#!/usr/bin/env python3
+import os
+import sys
+import cv2
+
+print("🚀 Long-Form (Yatay 16:9 1920x1080) Travel Vlog Kurgusu Başlatılıyor...")
+
+segments = {repr(long_segments_repr)}
+output_path = r"{long_output_path}"
+
+rendered_moviepy = False
+try:
+    from moviepy.editor import VideoFileClip, concatenate_videoclips
+    clips = []
+    for fp, start_t, end_t in segments:
+        if os.path.exists(fp):
+            try:
+                clip = VideoFileClip(fp).subclip(start_t, end_t)
+                if clip.w != 1920 or clip.h != 1080:
+                    clip = clip.resize(newsize=(1920, 1080))
+                clips.append(clip)
+            except Exception as e:
+                print(f"⚠️ MoviePy uyarısı: {{e}}")
+    if clips:
+        final_clip = concatenate_videoclips(clips, method="compose")
+        final_clip.write_videofile(output_path, codec="libx264", audio_codec="aac", fps=24)
+        print("🎉 Yatay 16:9 Long Vlog MoviePy ile Tamamlandı: " + output_path)
+        rendered_moviepy = True
+except Exception as e:
+    print(f"MoviePy kullanılamadı veya hata verdi ({{e}}), OpenCV motoruna geçiliyor...")
+
+if not rendered_moviepy:
+    print("🎥 OpenCV Kurgu Motoru Devrede...")
+    target_w, target_h = 1920, 1080
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    writer = cv2.VideoWriter(output_path, fourcc, 24.0, (target_w, target_h))
+    
+    for fp, start_t, end_t in segments:
+        if not os.path.exists(fp):
+            continue
+        cap = cv2.VideoCapture(fp)
+        if not cap.isOpened():
+            continue
+            
+        fps = float(cap.get(cv2.CAP_PROP_FPS)) or 24.0
+        start_frame = int(start_t * fps)
+        end_frame = int(end_t * fps) if end_t > 0 else int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        
+        cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+        curr_frame = start_frame
+        
+        while cap.isOpened() and curr_frame < end_frame:
+            ret, frame = cap.read()
+            if not ret or frame is None:
+                break
+            resized = cv2.resize(frame, (target_w, target_h), interpolation=cv2.INTER_AREA)
+            writer.write(resized)
+            curr_frame += 1
+            
+        cap.release()
+    writer.release()
+    print("🎉 Yatay 16:9 Long Vlog OpenCV ile Tamamlandı: " + output_path)
 """
         with open(long_script_path, "w", encoding="utf-8") as f:
             f.write(long_content)
@@ -318,42 +355,84 @@ if clips:
         short_output_path = os.path.join(output_dir, "final_travel_vlog_short.mp4")
 
         top_videos = sorted(videos, key=lambda x: x.vision.aesthetic_score, reverse=True)[:5]
+        short_segments_repr = []
+        for item in top_videos:
+            short_segments_repr.append((item.metadata.file_path, 0.0, min(item.metadata.duration_seconds, 3.5)))
 
         short_content = f"""#!/usr/bin/env python3
 import os
 import sys
+import cv2
 
 print("📱 Short-Form (Dik 9:16 1080x1920 Reels/TikTok) Kurgusu Başlatılıyor...")
+
+segments = {repr(short_segments_repr)}
+output_path = r"{short_output_path}"
+
+rendered_moviepy = False
 try:
     from moviepy.editor import VideoFileClip, concatenate_videoclips
     from moviepy.video.fx.all import crop
-except ImportError:
-    print("❌ HATA: 'moviepy' kütüphanesi bulunamadı.")
-    sys.exit(1)
+    clips = []
+    for fp, start_t, end_t in segments:
+        if os.path.exists(fp):
+            try:
+                clip = VideoFileClip(fp).subclip(start_t, end_t)
+                (w, h) = clip.size
+                target_w = int(h * 9 / 16)
+                if target_w < w:
+                    x_center = w / 2
+                    clip = crop(clip, width=target_w, height=h, x_center=x_center, y_center=h/2)
+                clip = clip.resize(newsize=(1080, 1920))
+                clips.append(clip)
+            except Exception as e:
+                print(f"⚠️ MoviePy uyarısı: {{e}}")
+    if clips:
+        final_clip = concatenate_videoclips(clips, method="compose")
+        final_clip.write_videofile(output_path, codec="libx264", audio_codec="aac", fps=30)
+        print("🎉 Dik 9:16 Short Vlog MoviePy ile Tamamlandı: " + output_path)
+        rendered_moviepy = True
+except Exception as e:
+    print(f"MoviePy kullanılamadı veya hata verdi ({{e}}), OpenCV motoruna geçiliyor...")
 
-clips = []
-"""
-        for item in top_videos:
-            fp = item.metadata.file_path
-            short_content += f"""
-if os.path.exists(r"{fp}"):
-    try:
-        clip = VideoFileClip(r"{fp}").subclip(0, min({item.metadata.duration_seconds}, 3.5))
-        (w, h) = clip.size
-        target_w = int(h * 9 / 16)
-        if target_w < w:
-            x_center = w / 2
-            clip = crop(clip, width=target_w, height=h, x_center=x_center, y_center=h/2)
-        clip = clip.resize(newsize=(1080, 1920))
-        clips.append(clip)
-    except Exception as e:
-        print(f"⚠️ Uyarı: {{e}}")
-"""
-        short_content += f"""
-if clips:
-    final_clip = concatenate_videoclips(clips, method="compose")
-    final_clip.write_videofile(r"{short_output_path}", codec="libx264", audio_codec="aac", fps=30)
-    print("🎉 Dik 9:16 Short Vlog Tamamlandı: {short_output_path}")
+if not rendered_moviepy:
+    print("🎥 OpenCV Kurgu Motoru Devrede (9:16 Dik Kırpma)...")
+    target_w, target_h = 1080, 1920
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    writer = cv2.VideoWriter(output_path, fourcc, 30.0, (target_w, target_h))
+    
+    for fp, start_t, end_t in segments:
+        if not os.path.exists(fp):
+            continue
+        cap = cv2.VideoCapture(fp)
+        if not cap.isOpened():
+            continue
+            
+        fps = float(cap.get(cv2.CAP_PROP_FPS)) or 30.0
+        start_frame = int(start_t * fps)
+        end_frame = int(end_t * fps) if end_t > 0 else int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        
+        cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+        curr_frame = start_frame
+        
+        while cap.isOpened() and curr_frame < end_frame:
+            ret, frame = cap.read()
+            if not ret or frame is None:
+                break
+                
+            h, w = frame.shape[:2]
+            crop_w = int(h * 9 / 16)
+            if crop_w < w:
+                start_x = (w - crop_w) // 2
+                frame = frame[:, start_x:start_x+crop_w]
+                
+            resized = cv2.resize(frame, (target_w, target_h), interpolation=cv2.INTER_AREA)
+            writer.write(resized)
+            curr_frame += 1
+            
+        cap.release()
+    writer.release()
+    print("🎉 Dik 9:16 Short Vlog OpenCV ile Tamamlandı: " + output_path)
 """
         with open(short_script_path, "w", encoding="utf-8") as f:
             f.write(short_content)
@@ -364,4 +443,5 @@ if clips:
             f.write(long_content)
         os.chmod(legacy_script, 0o755)
 
-        logger.info(f"Generated Long and Short render scripts in {output_dir}")
+        logger.info(f"Generated Long and Short render scripts with OpenCV fallback in {output_dir}")
+

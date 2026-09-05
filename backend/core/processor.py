@@ -8,6 +8,7 @@ from backend.models.schema import ProcessedVideoItem
 from backend.extractors.metadata_extractor import MetadataExtractor
 from backend.extractors.audio_transcriber import AudioTranscriber
 from backend.extractors.vision_analyzer import VisionAnalyzer
+from backend.extractors.icloud_importer import ICloudSharedAlbumImporter
 from backend.core.vlog_generator import VlogGenerator
 
 logger = logging.getLogger(__name__)
@@ -21,6 +22,7 @@ class VideoPipelineProcessor:
         self.audio_transcriber = AudioTranscriber(model_size=whisper_model)
         self.vision_analyzer = VisionAnalyzer(api_key=self.gemini_api_key)
         self.vlog_generator = VlogGenerator(api_key=self.gemini_api_key)
+        self.icloud_importer = ICloudSharedAlbumImporter()
         self.processed_items: Dict[str, ProcessedVideoItem] = {}
 
     def is_video_file(self, file_path: str) -> bool:
@@ -65,6 +67,20 @@ class VideoPipelineProcessor:
         self.processed_items[video_id] = item
         return item
 
+    def process_icloud_album(
+        self,
+        url_or_token: str,
+        output_dir: str,
+        progress_cb: Optional[Callable[[str, int, int, float, str], None]] = None
+    ) -> List[ProcessedVideoItem]:
+        """Downloads all media (videos, Live Photos, photos) from an iCloud Shared Album URL and processes them."""
+        def download_progress(filename, current, total, ratio, msg):
+            if progress_cb:
+                progress_cb(filename, current, total, ratio * 0.3, f"iCloud İndirme: {msg}")
+
+        album_dir = self.icloud_importer.download_album_from_url(url_or_token, progress_cb=download_progress)
+        return self.process_directory(album_dir, output_dir, progress_cb=progress_cb)
+
     def process_directory(
         self,
         directory_path: str,
@@ -75,6 +91,9 @@ class VideoPipelineProcessor:
             raise FileNotFoundError(f"Dizin bulunamadı: {directory_path}")
 
         os.makedirs(output_dir, exist_ok=True)
+
+        # Prepare folder: convert photos without Live Photo MOV tracks into 3s video clips
+        self.icloud_importer.prepare_album_folder(directory_path)
 
         video_files = []
         for root, _, files in os.walk(directory_path):
@@ -92,7 +111,7 @@ class VideoPipelineProcessor:
             fname = os.path.basename(v_path)
             
             def single_cb(filename, step_ratio, status_msg):
-                overall_progress = ((idx - 1) + step_ratio) / max(total_files, 1)
+                overall_progress = 0.3 + 0.7 * (((idx - 1) + step_ratio) / max(total_files, 1))
                 if progress_cb:
                     progress_cb(filename, idx, total_files, overall_progress, status_msg)
 
@@ -136,3 +155,4 @@ class VideoPipelineProcessor:
         self.vlog_generator.generate_render_scripts(storyboard, results, output_dir)
 
         return results
+

@@ -239,13 +239,20 @@ document.addEventListener('DOMContentLoaded', () => {
             const placeStr = loc.place_name || loc.city || 'Bilinmeyen Konum';
             const speechText = item.transcript.has_speech ? item.transcript.full_text : 'Konuşma yok / Sadece Arka Plan Sesi';
 
+            let mediaBadge = '<span class="badge" style="background: rgba(16,185,129,0.2); color: #34d399;"><i class="fa-solid fa-video"></i> Video</span>';
+            if (item.metadata.is_live_photo || item.metadata.media_type === 'live_photo') {
+                mediaBadge = '<span class="badge" style="background: rgba(236,72,153,0.2); color: #f472b6;"><i class="fa-solid fa-bolt"></i> Live Photo</span>';
+            } else if (item.metadata.is_photo_clip || item.metadata.media_type === 'photo') {
+                mediaBadge = '<span class="badge" style="background: rgba(59,130,246,0.2); color: #60a5fa;"><i class="fa-solid fa-image"></i> Fotoğraf</span>';
+            }
+
             return `
                 <div class="video-card">
                     <div class="video-card-header">
                         <div class="location-badge">
                             <i class="fa-solid fa-location-dot"></i> ${placeStr}
                         </div>
-                        <span class="time-text">${item.metadata.creation_time || 'Zaman Yok'}</span>
+                        ${mediaBadge}
                     </div>
 
                     <h4 style="margin: 8px 0; font-size: 14px;">${item.metadata.file_name}</h4>
@@ -261,6 +268,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
         }).join('');
+
     }
 
     function renderScripts(storyboard) {

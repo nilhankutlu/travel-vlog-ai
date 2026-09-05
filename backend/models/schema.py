@@ -20,6 +20,9 @@ class VideoMetadata(BaseModel):
     height: int
     creation_time: Optional[str] = None
     location: GPSLocation = Field(default_factory=GPSLocation)
+    is_live_photo: bool = False
+    is_photo_clip: bool = False
+    media_type: str = "video"  # "video", "live_photo", "photo"
 
 class AudioSegment(BaseModel):
     start_time: float
