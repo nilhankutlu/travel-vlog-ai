@@ -33,43 +33,91 @@ class ICloudSharedAlbumImporter:
             token = token.split("?")[0]
         return token
 
+def _extract_redirect_host(e: urllib.error.HTTPError) -> Optional[str]:
+    """Extracts the target host from an Apple iCloud HTTP 330 Moved Location response."""
+    if e.code in (330, 301, 302, 307, 308):
+        redirect_host = (
+            e.headers.get("X-Apple-MMe-Host") or
+            e.headers.get("X-Apple-Redirect-Host") or
+            e.headers.get("Location")
+        )
+        if redirect_host:
+            redirect_host = redirect_host.replace("https://", "").replace("http://", "").split("/")[0]
+            return redirect_host
+        
+        try:
+            body_bytes = e.read()
+            if body_bytes:
+                data = json.loads(body_bytes.decode("utf-8"))
+                host = data.get("redirect-host") or data.get("X-Apple-MMe-Host") or data.get("host")
+                if host:
+                    return host
+        except Exception:
+            pass
+    return None
+
+class ICloudSharedAlbumImporter:
+    def __init__(self, output_base_dir: str = "./output/icloud_albums"):
+        self.output_base_dir = os.path.abspath(output_base_dir)
+        os.makedirs(self.output_base_dir, exist_ok=True)
+
+    def parse_token(self, url_or_token: str) -> str:
+        """Extracts the token from an iCloud Shared Album URL or token string."""
+        url_or_token = url_or_token.strip()
+        if "#" in url_or_token:
+            token = url_or_token.split("#")[-1].strip()
+        elif "/" in url_or_token:
+            token = url_or_token.rstrip("/").split("/")[-1].strip()
+        else:
+            token = url_or_token
+        
+        if "?" in token:
+            token = token.split("?")[0]
+        return token
+
     def _discover_host(self, token: str) -> str:
         """Finds the correct partition host for the iCloud shared stream."""
-        candidate_hosts = [
-            "p102-sharedstreams.icloud.com",
-            "p01-sharedstreams.icloud.com",
-            "p02-sharedstreams.icloud.com",
-            "p03-sharedstreams.icloud.com",
-            "p04-sharedstreams.icloud.com",
-            "p05-sharedstreams.icloud.com",
-            "p11-sharedstreams.icloud.com",
-            "p20-sharedstreams.icloud.com",
-            "p50-sharedstreams.icloud.com",
-        ]
-        
         headers = {
             "Content-Type": "application/json",
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
         }
+        initial_host = "p102-sharedstreams.icloud.com"
+        url = f"https://{initial_host}/{token}/sharedstreams/webstream"
+        body = json.dumps({"streamCsn": "0"}).encode("utf-8")
+        req = urllib.request.Request(url, data=body, headers=headers, method="POST")
         
-        for host in candidate_hosts:
+        try:
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                if resp.status == 200:
+                    return initial_host
+        except urllib.error.HTTPError as e:
+            redirect_host = _extract_redirect_host(e)
+            if redirect_host:
+                logger.info(f"Discovered iCloud 330 redirect host: {redirect_host}")
+                return redirect_host
+        except Exception:
+            pass
+
+        candidate_hosts = [f"p{i:02d}-sharedstreams.icloud.com" for i in range(1, 120)]
+        for host in candidate_hosts[:25]:
             url = f"https://{host}/{token}/sharedstreams/webstream"
-            body = json.dumps({"streamCsn": "0"}).encode("utf-8")
             req = urllib.request.Request(url, data=body, headers=headers, method="POST")
             try:
-                with urllib.request.urlopen(req, timeout=5) as resp:
+                with urllib.request.urlopen(req, timeout=4) as resp:
                     if resp.status == 200:
-                        data = json.loads(resp.read().decode("utf-8"))
-                        if "photos" in data:
-                            logger.info(f"Discovered active iCloud host: {host}")
-                            return host
+                        logger.info(f"Discovered active iCloud host: {host}")
+                        return host
+            except urllib.error.HTTPError as e:
+                redirect_host = _extract_redirect_host(e)
+                if redirect_host:
+                    return redirect_host
             except Exception:
                 continue
                 
-        return "p102-sharedstreams.icloud.com"
+        return initial_host
 
-    def fetch_album_metadata(self, token: str, host: str) -> Tuple[dict, list]:
-        """Fetches photos metadata and photo records."""
+    def fetch_album_metadata(self, token: str, host: str) -> Tuple[dict, list, str]:
+        """Fetches photos metadata and photo records, resolving 330 redirects."""
         url = f"https://{host}/{token}/sharedstreams/webstream"
         headers = {
             "Content-Type": "application/json",
@@ -78,10 +126,17 @@ class ICloudSharedAlbumImporter:
         body = json.dumps({"streamCsn": "0"}).encode("utf-8")
         req = urllib.request.Request(url, data=body, headers=headers, method="POST")
         
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            photos = data.get("photos", [])
-            return data, photos
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                photos = data.get("photos", [])
+                return data, photos, host
+        except urllib.error.HTTPError as e:
+            redirect_host = _extract_redirect_host(e)
+            if redirect_host and redirect_host != host:
+                logger.info(f"HTTP 330 Redirecting from {host} to {redirect_host}")
+                return self.fetch_album_metadata(token, redirect_host)
+            raise e
 
     def fetch_download_urls(self, token: str, host: str, photo_guids: List[str]) -> dict:
         """Fetches download URLs for derivatives via webget endpoint."""
@@ -99,9 +154,16 @@ class ICloudSharedAlbumImporter:
                 with urllib.request.urlopen(req, timeout=20) as resp:
                     res_data = json.loads(resp.read().decode("utf-8"))
                     items.update(res_data.get("items", {}))
+            except urllib.error.HTTPError as e:
+                redirect_host = _extract_redirect_host(e)
+                if redirect_host and redirect_host != host:
+                    logger.info(f"HTTP 330 Webget Redirecting to {redirect_host}")
+                    return self.fetch_download_urls(token, redirect_host, photo_guids)
+                logger.error(f"Error fetching webget chunk: {e}")
             except Exception as e:
                 logger.error(f"Error fetching webget chunk: {e}")
         return items
+
 
     def download_album_from_url(
         self,
@@ -117,7 +179,7 @@ class ICloudSharedAlbumImporter:
             progress_cb("iCloud Albüm Sunucusu Aranıyor...", 0, 100, 0.05, "iCloud sunucusu ile bağlantı kuruluyor...")
 
         host = self._discover_host(token)
-        metadata, photos = self.fetch_album_metadata(token, host)
+        metadata, photos, final_host = self.fetch_album_metadata(token, host)
         total_photos = len(photos)
 
         if total_photos == 0:
@@ -127,7 +189,8 @@ class ICloudSharedAlbumImporter:
             progress_cb("Medya Bağlantıları Alınıyor...", 0, total_photos, 0.15, f"{total_photos} medya nesnesi tespit edildi. İndirme adresleri hazırlanıyor...")
 
         photo_guids = [p["photoGuid"] for p in photos if "photoGuid" in p]
-        items_dict = self.fetch_download_urls(token, host, photo_guids)
+        items_dict = self.fetch_download_urls(token, final_host, photo_guids)
+
 
         downloaded_count = 0
         for idx, photo in enumerate(photos, 1):
