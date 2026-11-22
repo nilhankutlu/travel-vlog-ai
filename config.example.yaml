@@ -1,0 +1,52 @@
+# MegaTravelOS ayarları. Kopyala: cp config.example.yaml config.yaml
+# Tüm yollar bu dosyaya göre görecelidir; başka bilgisayarda sadece bu dosyayı düzenlemen yeter.
+
+workspace: ~/MegaTravelOS_workspace   # iCloud ile senkronize OLMAYAN bir yer (Desktop/Documents degil)
+
+source:
+  # "photos": macOS Photos kütüphanesinden (shared album'ler dahil) çeker  -> sadece Mac
+  # "folder": herhangi bir klasörü tarar (Windows/Linux/başka Mac için)
+  type: folder
+  folder: ./test_medya
+  photos:
+    library: null               # null = sistemin varsayılan Photos kütüphanesi
+    shared_albums: []           # boş = tüm shared album'ler; ya da ["Japonya 2025", "Hong Kong"]
+    albums: []                  # normal albümler de eklenebilir
+    include_own_library: false  # true: shared album dışında kendi kütüphanendeki her şeyi de al
+  copy_media: false             # folder modunda dosyaları workspace'e kopyala (false = yerinde oku)
+
+analysis:
+  backend: ollama               # "ollama" (lokal, ücretsiz — varsayılan) | "anthropic" (Claude API, ücretli, pip install '.[claude]')
+  ollama:
+    host: http://localhost:11434
+    vision_model: llava         # disk boşalınca önerilen: qwen2.5vl:7b
+    text_model: llama3          # önerilen: qwen2.5:7b veya llama3.1:8b
+  anthropic:
+    vision_model: claude-haiku-5-5
+    text_model: claude-sonnet-5-5
+  frames_per_video: 6           # bir videodan kaç kare (sahne değişimi + eşit aralık)
+  max_image_px: 768             # analize giden kare boyutu (hız / maliyet)
+  language: tr                  # transkript dili ipucu; null = otomatik algıla
+  whisper_model: large-v3-turbo # cpu'da hız için: small / medium
+  whisper_compute: int8
+  audio_events: true            # YAMNet ile kahkaha/alkış/çığlık tespiti
+
+director:
+  creator_language: tr          # ekran yazıları ve caption dili
+  caption_languages: [tr, en]
+  variants_per_concept: 2       # her konsepte kaç farklı kurgu varyantı
+  min_duration: 7
+  max_duration: 45
+  use_llm: true                 # false = sadece şablon tabanlı (çok hızlı, daha az yaratıcı)
+
+render:
+  width: 1080
+  height: 1920
+  fps: 30
+  crf: 20
+  preset: medium
+  music_dir: ./music            # music/<mood>/*.mp3  (mood: upbeat, chill, cinematic, funny, emotional)
+  music_volume: 0.35
+  font: null                    # null = otomatik (Arial Black / DejaVu Sans Bold ...)
+  burn_subtitles: true
+  watermark: null               # ör. "@kullaniciadin"

@@ -1,0 +1,7 @@
+pyicloud
+tqdm
+opencv-python
+pillow
+pillow-heif
+ollama
+anthropic

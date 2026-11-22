@@ -26,3 +26,22 @@ uploads/
 
 # macOS system files
 .DS_Store
+
+# --- MegaTravelOS (mtos) ---
+.venv/
+*.egg-info/
+config.yaml
+workspace/
+music/
+test_medya/
+temp_frames/
+test_analiz.json
+Test_Kurgu.xml
+*.heic
+*.HEIC
+*.MOV
+*.MP4
+*.jpg
+*.jpeg
+*.png
+*.tflite
