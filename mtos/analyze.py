@@ -91,7 +91,7 @@ class Analyzer:
         self.a = cfg["analysis"]
         self.frames_dir = cfg.ws("cache", "frames")
         self.audio_dir = cfg.ws("cache", "audio")
-        self.models_dir = cfg.ws("models")
+        self.models_dir = cfg.models_dir
         self._tr = self._ev = self._llm = None
 
     # lazy model loading
@@ -122,11 +122,16 @@ class Analyzer:
         return self._llm
 
     # ------------------------------------------------------------------
-    def run(self, only: str | None = None, redo: bool = False, limit: int | None = None):
-        where = "1=1" if redo else "(analyzed_audio=0 OR analyzed_vision=0)"
+    def run(self, only: str | None = None, redo: bool = False, limit: int | None = None,
+            ids: list[str] | None = None):
+        where, args = ("1=1" if redo else "(analyzed_audio=0 OR analyzed_vision=0)"), []
         if only:
-            where += f" AND kind='{only}'"
-        assets = self.cat.assets(where)[:limit]
+            where += " AND kind=?"
+            args.append(only)
+        if ids:
+            where += f" AND id IN ({','.join('?' * len(ids))})"
+            args += ids
+        assets = self.cat.assets(where, args)[:limit]
         # audio first for everything (one model in memory), then vision
         for a in tqdm(assets, desc="🎧 Ses"):
             if redo or not a["analyzed_audio"]:

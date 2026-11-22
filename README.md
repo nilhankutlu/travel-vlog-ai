@@ -77,12 +77,24 @@ Seyahat arşivinden (iCloud shared album'ler, Live Photos, videolar) **yüzlerce
 | `mtos render` | ffmpeg ile 1080×1920: Ken Burns, blur dolgu, split-screen, kelime kelime altyazı, hook/outro yazısı, müzik ducking, -14 LUFS. Her videoya Instagram / TikTok / YouTube caption `.txt`. |
 | `outputs/index.html` | Filtrelenebilir inceleme galerisi. |
 
+### Arayüz
+
+```bash
+~/.venvs/mtos/bin/mtos serve        # → http://localhost:8765
+```
+
+- **Projeler:** her proje = bir kaynak (klasör veya Photos shared album) + bir mod.
+  - **Shorts / Reels / TikTok (9:16):** konsept planları, format filtreleri, hook/caption/klip yazısı düzenleme, seçerek render.
+  - **Long-form YouTube (16:9):** Osmo Pocket gibi uzun çekimlerden kronolojik vlog. Konuşmalardaki boşluklar kesilir, b-roll eklenir, şehir/gün değişince bölüm açılır, cold open + başlık kartı. Zaman çizgisinde klip aç/kapa, bölüm adlarını düzenle; YouTube başlık seçenekleri, açıklama + otomatik bölüm zaman damgaları, etiketler. **DaVinci Resolve / Premiere XML** ve **SRT** dışa aktarımı.
+- **Genel sekmesi:** Medyayı tara → Analiz → Planla / Kurgu oluştur → Render. İşler arka planda çalışır, canlı ilerleme + log.
+- **Medya sekmesi:** her dosyanın analiz sonucu (özet, puanlar, transkript, ses olayları), tek dosyayı yeniden analiz.
+
 ### Kurulum (Mac / Linux / Windows)
 
 ```bash
 brew install uv ffmpeg            # Linux/Windows: uv + ffmpeg paket yöneticisinden
 uv venv --python 3.12 ~/.venvs/mtos            # venv'i iCloud ile senkronize OLMAYAN bir yere koy
-uv pip install --python ~/.venvs/mtos -e ".[photos,audio-events,geo]"   # photos = sadece macOS
+uv pip install --python ~/.venvs/mtos -e ".[photos,audio-events,geo,ui]"   # photos = sadece macOS
 cp config.example.yaml config.yaml              # kaynak klasör / albümler / modeller
 ollama pull llava && ollama pull llama3         # önerilen: qwen2.5vl:7b + qwen2.5:7b
 ~/.venvs/mtos/bin/mtos all

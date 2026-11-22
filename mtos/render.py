@@ -61,24 +61,27 @@ class TextPainter:
         if not text:
             return None
         W, H = self.W, self.H
+        wide = W > H
         spec = {  # size, y-center (fraction of H), box?
-            "hook": (84, 0.20, True), "clip": (64, 0.25, False), "sub": (62, 0.66, False),
+            "hook": (84, 0.20, True), "clip": (64, 0.25, False), "sub": (62, 0.86 if wide else 0.66, False),
             "outro": (76, 0.45, True), "mark": (34, 0.93, False),
+            "lower": (52, 0.82, True), "card": (96, 0.5, False),
         }[style]
         size, yc, box = spec
         font = self.font(size)
-        lines = self._wrap(text.upper() if style in ("hook", "clip") else text, font, W * 0.82)
+        max_w = W * (0.5 if style == "lower" else 0.82)
+        lines = self._wrap(text.upper() if style in ("hook", "clip", "card") else text, font, max_w)
         while len(lines) > 4 and size > 36:
             size -= 6
             font = self.font(size)
-            lines = self._wrap(text, font, W * 0.82)
+            lines = self._wrap(text, font, max_w)
         img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
         d = ImageDraw.Draw(img)
         lh = int(size * 1.18)
         y = int(H * yc - lh * len(lines) / 2)
         for ln in lines:
             tw = font.getlength(ln)
-            x = int((W - tw) / 2)
+            x = int(W * 0.06) if style == "lower" else int((W - tw) / 2)
             if box:
                 pad = int(size * 0.28)
                 d.rounded_rectangle([x - pad, y - pad // 2, x + tw + pad, y + lh - pad // 4],
@@ -100,14 +103,13 @@ def photo_frame(src: Path, out: Path, W: int, H: int, crop_x: float = 0.5, scale
     img = media.load_image(src)
     TW, TH = int(W * scale), int(H * scale)
     ar = img.width / img.height
-    if ar > 0.8:  # landscape / square -> blurred background fill
+    rel = ar / (W / H)
+    if rel > 1.25 or rel < 0.8:  # very different shape -> fit inside a blurred copy instead of hard crop
         bg = ImageOps.fit(img, (TW // 8, TH // 8)).filter(ImageFilter.GaussianBlur(6)).resize((TW, TH))
         bg = Image.blend(bg, Image.new("RGB", bg.size, "black"), 0.25)
-        fg = img.copy()
-        fg.thumbnail((TW, TH))
-        if fg.width < TW:
-            fg = fg.resize((TW, int(TW / ar)))
-        bg.paste(fg, (0, (TH - fg.height) // 2))
+        k = min(TW / img.width, TH / img.height)
+        fg = img.resize((int(img.width * k), int(img.height * k)))
+        bg.paste(fg, ((TW - fg.width) // 2, (TH - fg.height) // 2))
         bg.save(out, quality=92)
     else:
         ImageOps.fit(img, (TW, TH), centering=(crop_x, 0.5)).save(out, quality=92)
@@ -134,12 +136,14 @@ class Renderer:
         cx = seg.get("crop_x", 0.5)
         layout = seg.get("layout", "auto")
         if layout == "auto":
-            layout = "blur" if src_ar > 1.05 else "full"
+            rel = src_ar / (W / H)
+            layout = "blur" if (rel > 1.25 or rel < 0.8) else "full"
         if layout == "blur":
             return (f"[{label_in}]split[bga][fga];"
                     f"[bga]scale={W // 8}:{H // 8}:force_original_aspect_ratio=increase,crop={W // 8}:{H // 8},"
                     f"boxblur=6:2,scale={W}:{H},eq=brightness=-0.08[bg];"
-                    f"[fga]scale={W}:-2[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1[{label_out}]")
+                    f"[fga]scale={W}:{H}:force_original_aspect_ratio=decrease[fg];"
+                    f"[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1[{label_out}]")
         return (f"[{label_in}]scale={W}:{H}:force_original_aspect_ratio=increase,"
                 f"crop={W}:{H}:x='(iw-{W})*{cx:.3f}':y='(ih-{H})/2',setsar=1[{label_out}]")
 
@@ -207,9 +211,10 @@ class Renderer:
         # text overlays for this segment
         overlays = []
         if seg.get("text"):
-            p = self.painter.png(seg["text"], tmp / f"t{idx}.png", "clip")
+            style = seg.get("text_style", "clip")
+            p = self.painter.png(seg["text"], tmp / f"t{idx}.png", style)
             if p:
-                overlays.append((p, 0, dur))
+                overlays.append((p, 0.3 if style == "lower" else 0, min(dur, 4.0) if style == "lower" else dur))
         if self.cfg["render"].get("burn_subtitles"):
             for j, s in enumerate(seg.get("subtitles") or []):
                 p = self.painter.png(s["text"], tmp / f"s{idx}_{j}.png", "sub")
@@ -251,10 +256,30 @@ class Renderer:
         files = files or [p for p in self.music_dir.rglob("*") if p.suffix.lower() in (".mp3", ".m4a", ".wav")]
         return random.Random(plan_id).choice(files) if files else None
 
-    def render(self, plan: dict, out: Path) -> Path:
+    def _card_to_photo(self, seg: dict, tmp: Path, idx: int) -> dict:
+        """Title card: darkened blurred frame of a clip + big centred text."""
+        bg = tmp / f"cardsrc{idx}.jpg"
+        src = Path(seg["bg_src"])
+        if src.suffix.lower() in media.VIDEO_EXT:
+            media.extract_frame(src, seg.get("bg_t", 0), bg, 1280)
+        else:
+            media.load_image(src, 1280).save(bg)
+        img = Image.open(bg).convert("RGB").filter(ImageFilter.GaussianBlur(18))
+        img = Image.blend(img, Image.new("RGB", img.size, "black"), 0.35)
+        img.save(bg, quality=90)
+        return {"type": "photo", "src": str(bg), "dur": seg["dur"], "kenburns": "in", "crop_x": 0.5,
+                "text": seg.get("text", ""), "text_style": "card", "subtitles": []}
+
+    def render(self, plan: dict, out: Path, progress=None) -> Path:
         with tempfile.TemporaryDirectory(prefix="mtos_") as td:
             tmp = Path(td)
-            segs = [self.render_segment(s, tmp, i) for i, s in enumerate(plan["segments"])]
+            active = [s for s in plan["segments"] if s.get("enabled", True)]
+            segs = []
+            for i, s in enumerate(tqdm(active, desc="  segment", leave=False)):
+                if s.get("type") == "card":
+                    s = self._card_to_photo(s, tmp, i)
+                segs.append(self.render_segment(s, tmp, i))
+            plan = dict(plan, segments=[s for s in active])
             lst = tmp / "list.txt"
             lst.write_text("".join(f"file '{p}'\n" for p in segs))
             body = tmp / "body.mp4"
@@ -302,6 +327,13 @@ class Renderer:
 
 
 def captions_text(plan: dict) -> str:
+    if plan.get("format") == "longform":
+        yt = plan.get("youtube") or {}
+        opts = "\n".join(f"- {t}" for t in plan.get("title_options") or [])
+        return (f"# {plan.get('title')}\nlong-form | {plan.get('duration')}s\n\n== Başlık seçenekleri ==\n{opts}\n\n"
+                f"== Açıklama ==\n{yt.get('description', '')}\n\n{yt.get('chapters_block', '')}\n\n"
+                f"== Etiketler ==\n{', '.join(yt.get('tags') or [])}\n\n"
+                f"== Thumbnail yazısı ==\n{yt.get('thumbnail_text', '')}\n")
     c = plan.get("captions") or {}
     tags = " ".join(c.get("hashtags") or [])
     return (f"# {plan.get('title')}\nformat: {plan['format']}  |  {plan.get('loc')}  |  {plan['duration']}s"
@@ -316,7 +348,8 @@ def render_all(cfg: Config, cat, limit=None, plan_id=None, force=False):
     r = Renderer(cfg)
     plans = sorted(cfg.ws("plans").glob("*.json"))
     if plan_id:
-        plans = [p for p in plans if plan_id in p.stem]
+        wanted = plan_id if isinstance(plan_id, list) else [plan_id]
+        plans = [p for p in plans if any(w in p.stem for w in wanted)]
     done = 0
     for p in tqdm(plans[:limit] if limit else plans, desc="🎞️  Render"):
         plan = json.loads(p.read_text(encoding="utf-8"))
@@ -328,6 +361,10 @@ def render_all(cfg: Config, cat, limit=None, plan_id=None, force=False):
         try:
             r.render(plan, out)
             out.with_suffix(".txt").write_text(captions_text(plan), encoding="utf-8")
+            if plan.get("format") == "longform":
+                from .longform import export_xml, make_srt
+                out.with_suffix(".srt").write_text(make_srt(plan, cat), encoding="utf-8")
+                export_xml(plan, out.with_suffix(".xml"), r.fps)
             done += 1
         except Exception as e:
             tqdm.write(f"⚠️  {p.stem}: {str(e)[:600]}")

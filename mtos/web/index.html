@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MegaTravelOS</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <a class="brand" href="#/"><span class="logo">▶</span> MegaTravelOS</a>
+    <button class="btn primary wide" id="newProjectBtn">+ Yeni proje</button>
+    <nav id="projectList" class="plist"></nav>
+    <div class="sys" id="sys"></div>
+  </aside>
+  <main class="main" id="main"></main>
+</div>
+
+<div class="drawer-bg" id="drawerBg" hidden></div>
+<aside class="drawer" id="drawer" hidden aria-modal="true" role="dialog">
+  <button class="x" id="drawerClose" aria-label="Kapat">×</button>
+  <div id="drawerBody"></div>
+</aside>
+
+<dialog id="newProject">
+  <form method="dialog" id="npForm" class="np">
+    <h2>Yeni proje</h2>
+    <label>Proje adı<input name="title" required placeholder="örn. Hong Kong 2026"></label>
+    <fieldset class="modes">
+      <legend>Ne üretmek istiyorsun?</legend>
+      <label class="mode"><input type="radio" name="mode" value="shorts" checked>
+        <span><b>Shorts / Reels / TikTok</b><small>Her fotoğraf, video ve Live Photo'dan çok sayıda 9:16 kısa video. Konum, komik an, kategori, tek klip ürünleri.</small></span></label>
+      <label class="mode"><input type="radio" name="mode" value="longform">
+        <span><b>Long-form YouTube</b><small>Osmo Pocket gibi uzun çekimlerden kronolojik 16:9 vlog: bölümler, ölü anları kesme, b-roll, cold open, SRT + DaVinci XML.</small></span></label>
+    </fieldset>
+    <fieldset>
+      <legend>Kaynak</legend>
+      <div class="row">
+        <label class="chip"><input type="radio" name="source_type" value="folder" checked> Klasör</label>
+        <label class="chip"><input type="radio" name="source_type" value="photos"> Photos (shared album)</label>
+      </div>
+      <label class="src-folder">Klasör yolu<input name="folder" placeholder="/Volumes/SSD/OsmoPocket/HongKong"></label>
+      <label class="src-photos" hidden>Shared album adları (virgülle; boş = hepsi)<input name="shared_albums" placeholder="Hong Kong, Kore"></label>
+      <label class="check"><input type="checkbox" name="copy_media"> Dosyaları çalışma alanına kopyala <small>(kaynak iCloud klasörüyse işaretle; büyük Osmo dosyalarında kapalı tut)</small></label>
+    </fieldset>
+    <fieldset class="lf-only" hidden>
+      <legend>Hedef süre</legend>
+      <div class="row">
+        <label>Hedef (dk)<input name="target_minutes" type="number" value="12" min="3" max="90"></label>
+        <label>En fazla (dk)<input name="max_minutes" type="number" value="20" min="3" max="120"></label>
+      </div>
+    </fieldset>
+    <div class="actions">
+      <button class="btn" value="cancel" formnovalidate>Vazgeç</button>
+      <button class="btn primary" value="ok">Oluştur</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>

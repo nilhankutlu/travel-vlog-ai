@@ -33,6 +33,19 @@ def read_wav(path: Path) -> np.ndarray:
 
 
 # ---------------------------------------------------------------- whisper
+# Phrases Whisper invents on music / noise / foreign speech (YouTube outro training data)
+HALLUCINATIONS = [
+    "izlediğiniz için teşekkür", "abone olmayı unutmayın", "altyazı m.k.", "thanks for watching",
+    "thank you for watching", "subscribe to my channel", "please subscribe", "like and subscribe",
+    "sous-titres réalisés", "untertitel im auftrag", "字幕", "請不吝點贊", "訂閱", "ご視聴ありがとう",
+]
+
+
+def _is_hallucination(text: str) -> bool:
+    t = text.lower().strip()
+    return not t or any(h in t for h in HALLUCINATIONS)
+
+
 class Transcriber:
     def __init__(self, model: str, compute: str = "int8", language: str | None = None,
                  cache_dir: Path | None = None):
@@ -49,6 +62,8 @@ class Transcriber:
         out = []
         for s in segs:
             if s.no_speech_prob > 0.7 and s.avg_logprob < -1.0:
+                continue
+            if _is_hallucination(s.text):
                 continue
             out.append({
                 "start": round(s.start, 2), "end": round(s.end, 2), "text": s.text.strip(),

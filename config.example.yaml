@@ -26,7 +26,7 @@ analysis:
     text_model: claude-sonnet-5-5
   frames_per_video: 6           # bir videodan kaç kare (sahne değişimi + eşit aralık)
   max_image_px: 768             # analize giden kare boyutu (hız / maliyet)
-  language: tr                  # transkript dili ipucu; null = otomatik algıla
+  language: null              # null = otomatik algıla (zorlamak yabancı konuşmada uydurmaya yol açar)
   whisper_model: large-v3-turbo # cpu'da hız için: small / medium
   whisper_compute: int8
   audio_events: true            # YAMNet ile kahkaha/alkış/çığlık tespiti

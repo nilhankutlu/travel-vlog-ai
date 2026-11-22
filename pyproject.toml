@@ -14,6 +14,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Web arayüzü (mtos serve)
+ui = ["fastapi>=0.110", "uvicorn>=0.29"]
 # İsteğe bağlı: Claude API backend'i (varsayılan her şey lokal ve ücretsiz)
 claude = ["anthropic>=0.40"]
 # macOS Photos kütüphanesinden (shared album dahil) okuma
@@ -32,3 +34,6 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 packages = ["mtos"]
+
+[tool.setuptools.package-data]
+mtos = ["web/*"]

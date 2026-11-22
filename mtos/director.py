@@ -81,12 +81,12 @@ def _day(ts: str | None) -> str | None:
 
 
 class Director:
-    def __init__(self, cfg: Config, cat: Catalog, use_llm: bool = True):
+    def __init__(self, cfg: Config, cat: Catalog, use_llm: bool = True, ids: list[str] | None = None):
         self.cfg, self.cat = cfg, cat
         self.d = cfg["director"]
         self.use_llm = use_llm and self.d.get("use_llm", True)
         self.plans_dir = cfg.ws("plans")
-        self.assets = {a["id"]: a for a in cat.assets()}
+        self.assets = {a["id"]: a for a in cat.assets() if not ids or a["id"] in ids}
         self._llm = None
 
     @property
@@ -168,6 +168,8 @@ class Director:
 
         # --- quotes (speech)
         for m in sorted([m for m in ms if m["kind"] == "speech"], key=lambda m: -m["score"]):
+            if not self._confident(self.assets[m["asset_id"]]):
+                continue  # garbled transcript (crowd, announcer, noise): no quote videos
             if m["score"] >= 0.45 and len((m["text"] or "").split()) >= 4:
                 add("quote", [m], loc=m["loc"])
 
@@ -283,7 +285,7 @@ class Director:
             v = a.get("vision") or {}
             line = (f"[{i}] {m['kind']} | {a['kind']} | {m['loc']} | score {m['score']:.2f} | "
                     f"{(m['text'] or v.get('summary') or '')[:160]}")
-            q = (a.get("transcript") or {}).get("text")
+            q = (a.get("transcript") or {}).get("text") if self._confident(a) else None
             if q and m["kind"] in ("speech", "funny", "reaction"):
                 line += f' | says: "{q[:160]}"'
             if v.get("humor_reason"):
@@ -336,7 +338,11 @@ class Director:
                   "on-screen text per clip in clip_order (\"\" for none); outro_text (short CTA or punchline); "
                   "music_mood; instagram_caption; tiktok_caption; youtube_title (<70 chars); "
                   "youtube_description; hashtags.")
+        lang_name = {"tr": "Turkish", "en": "English"}.get(lang, lang)
+        prompt += (f"\n\nIMPORTANT: title, hook_text, clip_texts and outro_text MUST be written in {lang_name}. "
+                   f"Captions: first line(s) in {lang_name}, then one line in English.")
         s = self.llm.text_json(prompt, PLAN_SCHEMA, system=sys, purpose="director", max_tokens=3000)
+        s["hashtags"] = ["#" + h.strip().lstrip("#").replace(" ", "") for h in s.get("hashtags") or [] if h.strip()]
         n = len(c["moments"])
         s["clip_order"] = [i for i in dict.fromkeys(s.get("clip_order") or []) if isinstance(i, int) and 0 <= i < n] \
             or list(range(n))
@@ -514,8 +520,16 @@ class Director:
                 "subtitles": self._subs(a, start, end) if talky else []}
 
     @staticmethod
+    def _confident(a) -> bool:
+        """Is the transcript trustworthy enough to quote / subtitle / feed to the script writer?"""
+        return ((a.get("transcript") or {}).get("lang_prob") or 0) >= 0.8
+
+    @staticmethod
     def _subs(a, start, end, max_words=4) -> list[dict]:
-        words = [w for s in (a.get("transcript") or {}).get("segments") or [] for w in s.get("words") or []]
+        tr = a.get("transcript") or {}
+        if not Director._confident(a):  # unsure transcript (noise, announcer, crowd): don't burn it in
+            return []
+        words = [w for s in tr.get("segments") or [] for w in s.get("words") or []]
         words = [w for w in words if w["e"] > start and w["s"] < end]
         subs, cur = [], []
         for w in words:
